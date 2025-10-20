@@ -1,0 +1,31 @@
+# 测试文件
+test/
+research/
+
+# 源文件
+src/
+tsconfig.json
+
+# 文档图片占位符
+docs/images/*.png
+docs/images/*.gif
+docs/images/.gitkeep
+
+# Git 文件
+.git
+.gitignore
+.github/
+
+# 文档（保留 README.md）
+*.md
+!README.md
+
+# 开发依赖
+node_modules/
+.DS_Store
+*.log
+.vscode/
+.idea/
+
+# 其他
+*.tgz

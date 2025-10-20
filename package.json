@@ -1,0 +1,66 @@
+{
+  "name": "rednote-mind-mcp",
+  "version": "0.2.0",
+  "description": "Rednote-Mind-MCP - 小红书 MCP 服务器，为 AI 客户端提供收藏夹、搜索和内容获取能力",
+  "main": "dist/index.js",
+  "bin": {
+    "rednote-mind-mcp": "dist/server.js",
+    "rednote-init": "dist/cli.js"
+  },
+  "scripts": {
+    "research:favorites": "ts-node research/explore-favorites.ts",
+    "research:images": "ts-node research/test-image-download.ts",
+    "debug:favorites": "ts-node research/debug-favorites-dom.ts",
+    "test:favorites": "ts-node test/test-favorites-api.ts",
+    "test:images": "ts-node test/test-images-api.ts",
+    "test:images-favorites": "ts-node test/test-images-from-favorites.ts",
+    "test:note-content": "ts-node test/test-note-content.ts",
+    "test:batch-notes": "ts-node test/test-batch-notes.ts",
+    "build": "tsc",
+    "prepublishOnly": "npm run build",
+    "dev": "ts-node --esm src/server.ts",
+    "start": "node dist/server.js"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "xiaohongshu",
+    "rednote",
+    "ai",
+    "claude",
+    "llm",
+    "mind",
+    "search",
+    "favorites",
+    "image-download"
+  ],
+  "author": "tangxin<tangx25@mails.tsinghua.edu.cn>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/your-username/rednote-mind-mcp.git"
+  },
+  "bugs": {
+    "url": "https://github.com/your-username/rednote-mind-mcp/issues"
+  },
+  "homepage": "https://github.com/your-username/rednote-mind-mcp#readme",
+  "files": [
+    "dist/",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.9.0",
+    "playwright": "^1.42.1",
+    "winston": "^3.17.0",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.19",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.3.3"
+  }
+}

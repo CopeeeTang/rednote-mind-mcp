@@ -1,0 +1,40 @@
+# Dependencies
+node_modules/
+package-lock.json
+yarn.lock
+
+# Build output
+dist/
+*.tsbuildinfo
+
+# Testing
+test-images/
+*.log
+
+# Research output
+research/favorites-page-snapshot.html
+research/test-images/
+
+# Temporary files
+.temp_images/
+*.tmp
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.env.local
+
+# Sensitive data
+cookies.json
+*.pem
+*.key
