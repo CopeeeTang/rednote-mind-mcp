@@ -5,6 +5,7 @@
 
 import type { Page } from 'playwright';
 import type { SearchResult, SearchResultNote } from '../types';
+import { TIMING } from './constants';
 
 /**
  * 按关键词搜索笔记
@@ -43,7 +44,7 @@ export async function searchNotesByKeyword(
 
     // 2. 等待搜索结果加载
     console.error(`  ⏳ 等待搜索结果加载...`);
-    await page.waitForTimeout(5000); // 等待页面JavaScript渲染
+    await page.waitForTimeout(TIMING.SEARCH_RESULT_RENDER_MS); // 等待页面JavaScript渲染
 
     // 3. 处理排序（如果需要）
     if (sortType !== 'general') {
@@ -66,7 +67,7 @@ export async function searchNotesByKeyword(
             }
           }, sortText);
 
-          await page.waitForTimeout(3000); // 等待排序结果加载
+          await page.waitForTimeout(TIMING.SEARCH_SORT_DELAY_MS); // 等待排序结果加载
         }
       } catch (error) {
         console.error(`  ⚠️ 排序切换失败，使用默认排序`);
@@ -79,69 +80,128 @@ export async function searchNotesByKeyword(
       await page.evaluate(() => {
         window.scrollBy(0, 1000);
       });
-      await page.waitForTimeout(2000);
+      await page.waitForTimeout(TIMING.SEARCH_SCROLL_DELAY_MS);
     }
 
-    // 5. 提取搜索结果
-    console.error(`  📦 提取搜索结果...`);
-    const results = await page.evaluate((maxResults) => {
-      // 可能的笔记容器选择器
-      const containerSelectors = [
-        'section.note-item',  // 收藏夹使用的选择器
-        '[class*="note-item"]',
-        '[class*="search-item"]',
-        '[class*="feed-item"]',
-        'a[href*="/explore/"]'
-      ];
+    // 5. 查找笔记元素
+    console.error(`  🔍 查找笔记元素...`);
+    const containerSelectors = [
+      'section.note-item',
+      '[class*="note-item"]',
+      '[class*="search-item"]',
+      '[class*="feed-item"]'
+    ];
 
-      let noteElements: Element[] = [];
+    let noteElements: any[] = [];
+    for (const selector of containerSelectors) {
+      noteElements = await page.$$(selector);
+      if (noteElements.length > 0) {
+        console.error(`  ✅ 找到 ${noteElements.length} 个笔记元素 (选择器: ${selector})`);
+        break;
+      }
+    }
 
-      // 尝试每个选择器
-      for (const selector of containerSelectors) {
-        noteElements = Array.from(document.querySelectorAll(selector));
-        if (noteElements.length > 0) {
-          break;
+    // 备用方案：直接查找链接
+    if (noteElements.length === 0) {
+      const links = await page.$$('a[href*="/explore/"]');
+      noteElements = links.slice(0, limit);
+      console.error(`  ✅ 找到 ${noteElements.length} 个笔记链接`);
+    }
+
+    // 6. 悬停触发链接加载，提取xsec_token
+    console.error(`  🖱️  悬停笔记提取URL...`);
+    const hoverCount = Math.min(noteElements.length, limit);
+
+    for (let i = 0; i < hoverCount; i++) {
+      try {
+        await noteElements[i].hover();
+
+        // 随机延迟，模拟人类行为，避免触发反爬
+        const randomDelay =
+          TIMING.HOVER_DELAY_MIN_MS +
+          Math.random() * (TIMING.HOVER_DELAY_MAX_MS - TIMING.HOVER_DELAY_MIN_MS);
+        await page.waitForTimeout(randomDelay);
+
+        if ((i + 1) % TIMING.HOVER_BATCH_SIZE === 0) {
+          // 每一批额外暂停，避免频率过高
+          console.error(`  ⏳ 已悬停 ${i + 1}/${hoverCount}，暂停片刻...`);
+          const batchPause =
+            TIMING.HOVER_BATCH_PAUSE_MIN_MS +
+            Math.random() * (TIMING.HOVER_BATCH_PAUSE_MAX_MS - TIMING.HOVER_BATCH_PAUSE_MIN_MS);
+          await page.waitForTimeout(batchPause);
         }
+      } catch (error) {
+        // 继续处理下一个
       }
+    }
+    console.error(`  ✅ 已悬停 ${hoverCount} 个笔记元素\n`);
 
-      // 如果还没找到，尝试直接查找包含explore链接的元素
-      if (noteElements.length === 0) {
-        const allLinks = Array.from(document.querySelectorAll('a[href*="/explore/"]'));
-        // 获取链接的父容器
-        const containers = new Set<Element>();
-        allLinks.forEach(link => {
-          let parent = link.parentElement;
-          // 向上查找合适的容器（最多3层）
-          for (let i = 0; i < 3 && parent; i++) {
-            if (parent.querySelector('img')) {
-              containers.add(parent);
-              break;
+    // 7. 提取搜索结果（包含xsec_token的URL）
+    console.error(`  📦 提取搜索结果...`);
+    const rawData = await page.evaluate((maxResults) => {
+      const items = Array.from(document.querySelectorAll('section.note-item, [class*="note-item"]')).slice(0, maxResults);
+
+      return items.map((item, idx) => {
+        // 查找所有链接
+        const allLinks = Array.from(item.querySelectorAll('a')) as HTMLAnchorElement[];
+
+        let noteUrl = '';
+        let noteId = '';
+        let xsecToken = '';
+
+        for (const link of allLinks) {
+          const href = link.href || link.getAttribute('href') || '';
+
+          // 提取带 xsec_token 的悬停链接（搜索页面使用 /search_result/ 路径）
+          if (href.includes('xsec_token=') && href.includes('/search_result/')) {
+            const noteIdMatch = href.match(/\/search_result\/([a-zA-Z0-9]+)/);
+            const tokenMatch = href.match(/xsec_token=([^&]+)/);
+
+            if (noteIdMatch && noteIdMatch[1] && noteIdMatch[1].length >= 20) {
+              noteId = noteIdMatch[1];
+              if (tokenMatch && tokenMatch[1]) {
+                xsecToken = decodeURIComponent(tokenMatch[1]);
+              }
             }
-            parent = parent.parentElement;
           }
-        });
-        noteElements = Array.from(containers);
-      }
 
-      console.log(`找到 ${noteElements.length} 个笔记元素`);
+          // 提取带 xsec_token 的 explore 链接（备用）
+          if (href.includes('xsec_token=') && href.includes('/explore/') && !noteId) {
+            const noteIdMatch = href.match(/\/explore\/([a-zA-Z0-9]+)/);
+            const tokenMatch = href.match(/xsec_token=([^&]+)/);
 
-      // 提取笔记信息
-      return noteElements.slice(0, maxResults).map((item, idx) => {
-        // 查找笔记链接
-        const linkEl = item.querySelector('a[href*="/explore/"]') as HTMLAnchorElement;
-        const href = linkEl?.href || '';
+            if (noteIdMatch && noteIdMatch[1] && noteIdMatch[1].length >= 20) {
+              noteId = noteIdMatch[1];
+              if (tokenMatch && tokenMatch[1]) {
+                xsecToken = decodeURIComponent(tokenMatch[1]);
+              }
+            }
+          }
 
-        // 提取笔记 ID
-        const noteIdMatch = href.match(/\/explore\/([a-zA-Z0-9]+)/);
-        const noteId = noteIdMatch ? noteIdMatch[1] : '';
+          // 备用：获取普通 explore 链接
+          if (href.includes('/explore/') && !noteId) {
+            const noteIdMatch = href.match(/\/explore\/([a-zA-Z0-9]+)/);
+            if (noteIdMatch && noteIdMatch[1] && noteIdMatch[1].length >= 20) {
+              noteId = noteIdMatch[1];
+            }
+          }
+        }
 
-        // 构造完整URL（可能需要添加token）
-        const url = href.startsWith('http') ? href : `https://www.xiaohongshu.com${href}`;
+        // 构造最终URL：使用 explore URL + token 参数
+        if (noteId) {
+          if (xsecToken) {
+            // 构造带 token 的 explore URL，添加 xsec_source=pc_search
+            noteUrl = `https://www.xiaohongshu.com/explore/${noteId}?xsec_token=${encodeURIComponent(xsecToken)}&xsec_source=pc_search`;
+          } else {
+            // 没有token就用基本的 explore URL
+            noteUrl = `https://www.xiaohongshu.com/explore/${noteId}`;
+          }
+        }
 
         // 提取标题
         const titleEl = item.querySelector('[class*="title"]') ||
                        item.querySelector('[class*="content"]') ||
-                       linkEl;
+                       item.querySelector('a[href*="/explore/"]');
         const title = titleEl?.textContent?.trim() || `笔记 ${idx + 1}`;
 
         // 提取封面
@@ -160,13 +220,20 @@ export async function searchNotesByKeyword(
 
         return {
           title,
-          url,
+          url: noteUrl,
           noteId,
           cover,
           author
         };
-      }).filter(note => note.noteId); // 过滤掉没有noteId的结果
+      });
     }, limit);
+
+    console.log(`\n  📊 提取结果: 共 ${rawData.length} 条`);
+
+    // 过滤掉没有 URL 的条目
+    const results = rawData.filter(note => note.url && note.noteId);
+
+    console.log(`  ✅ 有效笔记: ${results.length} 条\n`);
 
     console.error(`\n✅ 搜索完成！找到 ${results.length} 条结果\n`);
 

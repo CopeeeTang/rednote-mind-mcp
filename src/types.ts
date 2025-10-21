@@ -91,6 +91,8 @@ export interface LoginStatus {
 export interface LoginResult {
   success: boolean;
   message: string;
+  userIdExtracted: boolean;
+  warnings?: string[];
 }
 
 /**
