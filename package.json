@@ -1,6 +1,6 @@
 {
   "name": "rednote-mind-mcp",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Rednote-Mind-MCP - 小红书 MCP 服务器，为 AI 客户端提供收藏夹、搜索和内容获取能力",
   "main": "dist/index.js",
   "bin": {
