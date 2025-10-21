@@ -5,6 +5,7 @@
 
 import type { Page } from 'playwright';
 import type { FavoriteNote } from '../types';
+import { getUserId } from './auth';
 
 /**
  * 从小红书收藏夹获取笔记列表
@@ -22,9 +23,12 @@ import type { FavoriteNote } from '../types';
  */
 export async function getFavoritesList(
   page: Page,
-  userId: string = 'me',
+  userId?: string,
   limit: number = 20
 ): Promise<FavoriteNote[]> {
+  // 如果未提供 userId，从配置文件读取
+  const actualUserId = userId || getUserId();
+  console.log(`  👤 使用用户 ID: ${actualUserId}`);
   // 1. 访问首页并检查登录状态
   console.log('  🔐 步骤 1: 访问首页并检查登录状态...');
   try {
@@ -123,7 +127,7 @@ export async function getFavoritesList(
 
   // 2. 导航到收藏夹页面
   console.log('  📂 访问收藏夹页面...');
-  const url = `https://www.xiaohongshu.com/user/profile/${userId}?tab=fav&subTab=note`;
+  const url = `https://www.xiaohongshu.com/user/profile/${actualUserId}?tab=fav&subTab=note`;
 
   await page.goto(url, {
     waitUntil: 'domcontentloaded',
@@ -157,8 +161,8 @@ export async function getFavoritesList(
     throw new Error('收藏夹页面加载失败或未找到笔记列表。请确保已登录并有收藏的笔记。');
   }
 
-  // 3. 悬停在每个笔记上，触发链接加载（关键！）
-  console.log('  🖱️  悬停在笔记上触发链接加载...');
+  // 3. 悬停触发链接加载，然后提取URL
+  console.log('  🖱️  悬停笔记提取URL...');
   const noteElements = await page.$$('section.note-item');
   const hoverCount = Math.min(noteElements.length, limit);
 
@@ -181,58 +185,39 @@ export async function getFavoritesList(
   }
   console.log(`  ✅ 已悬停 ${hoverCount} 个笔记元素\n`);
 
-  // 4. 提取笔记信息
+  // 4. 提取笔记信息（包含xsec_token的URL）
   const rawData = await page.evaluate((maxItems) => {
     const items = Array.from(document.querySelectorAll('section.note-item')).slice(0, maxItems);
 
-    return items.map((item, idx) => {
+    return items.map((item) => {
       // 查找所有链接，找到包含 /explore/ 的笔记链接
       const allLinks = Array.from(item.querySelectorAll('a')) as HTMLAnchorElement[];
 
       let noteUrl = '';
       let noteId = '';
-      const debugLinks: string[] = [];
-      const debugData: any = {
-        dataAttrs: {},
-        onClick: ''
-      };
-
-      // 方法 1: 提取带 xsec_token 的链接并转换为 explore URL（重要！避免403/404）
       let xsecToken = '';
-      let xsecSource = '';
-      let exploreUrl = '';
 
       for (const link of allLinks) {
         const href = link.href || link.getAttribute('href') || '';
-        debugLinks.push(href.substring(0, 80)); // 收集调试信息
 
         // 从 profile 链接中提取 token 和 noteId
         if (href.includes('xsec_token=') && href.includes('/profile/')) {
           const noteIdMatch = href.match(/\/profile\/[^/]+\/([a-zA-Z0-9]+)/);
           const tokenMatch = href.match(/xsec_token=([^&]+)/);
-          const sourceMatch = href.match(/xsec_source=([^&]+)/);
 
           if (noteIdMatch && noteIdMatch[1] && noteIdMatch[1].length >= 20) {
             noteId = noteIdMatch[1];
             if (tokenMatch && tokenMatch[1]) {
               xsecToken = decodeURIComponent(tokenMatch[1]);
             }
-            if (sourceMatch && sourceMatch[1]) {
-              xsecSource = sourceMatch[1];
-            }
-            debugData.extractedFrom = 'profile-with-token';
           }
         }
 
         // 备用：获取 explore 链接
         if (href.includes('/explore/')) {
           const noteIdMatch = href.match(/\/explore\/([a-zA-Z0-9]+)/);
-          if (noteIdMatch && noteIdMatch[1] && noteIdMatch[1].length >= 20) {
-            exploreUrl = href.startsWith('http') ? href : `https://www.xiaohongshu.com${href}`;
-            if (!noteId) {
-              noteId = noteIdMatch[1];
-              debugData.extractedFrom = 'explore';
-            }
+          if (noteIdMatch && noteIdMatch[1] && noteIdMatch[1].length >= 20 && !noteId) {
+            noteId = noteIdMatch[1];
           }
         }
       }
@@ -241,45 +226,10 @@ export async function getFavoritesList(
       if (noteId) {
         if (xsecToken) {
           // 构造带 token 的 explore URL
-          noteUrl = `https://www.xiaohongshu.com/explore/${noteId}?xsec_token=${encodeURIComponent(xsecToken)}&xsec_source=${xsecSource}`;
-          debugData.hasToken = true;
-        } else if (exploreUrl) {
-          noteUrl = exploreUrl;
-          debugData.hasToken = false;
+          noteUrl = `https://www.xiaohongshu.com/explore/${noteId}?xsec_token=${encodeURIComponent(xsecToken)}`;
         } else {
-          // 如果都没有，就用基本的 explore URL
+          // 没有token就用基本的 explore URL
           noteUrl = `https://www.xiaohongshu.com/explore/${noteId}`;
-          debugData.hasToken = false;
-        }
-      }
-
-      // 方法 2: 如果 href 没找到，尝试从封面图片 URL 提取
-      if (!noteId) {
-        const imgEl = item.querySelector('img') as HTMLImageElement;
-        if (imgEl && imgEl.src) {
-          // 封面 URL 格式通常是: https://sns-webpic-qc.xhscdn.com/.../[noteId]_...
-          // 或者在其他参数中包含 noteId
-          const imgSrc = imgEl.src;
-
-          // 尝试从图片 URL 中提取 24 位字符的 ID
-          const possibleIds = imgSrc.match(/[a-zA-Z0-9]{24}/g);
-          if (possibleIds && possibleIds.length > 0) {
-            noteId = possibleIds[0];
-            noteUrl = `https://www.xiaohongshu.com/explore/${noteId}`;
-            debugData.extractedFrom = 'cover-img-url';
-          }
-        }
-      }
-
-      // 方法 3: 尝试从 data 属性提取
-      if (!noteId) {
-        const dataId = item.getAttribute('data-note-id') ||
-                       item.getAttribute('data-id') ||
-                       item.getAttribute('data-trace-id');
-        if (dataId && dataId.length >= 20) {
-          noteId = dataId;
-          noteUrl = `https://www.xiaohongshu.com/explore/${noteId}`;
-          debugData.extractedFrom = 'data-attr';
         }
       }
 
@@ -291,66 +241,35 @@ export async function getFavoritesList(
       const imgEl = item.querySelector('img') as HTMLImageElement;
       const cover = imgEl?.src || '';
 
-      // 提取时间（小红书收藏夹可能不显示时间）
-      const timeEl = item.querySelector('[class*="time"]');
-      const collectTime = timeEl?.textContent?.trim() || '';
-
       return {
         title,
         url: noteUrl,
         noteId,
-        cover,
-        collectTime: collectTime || undefined,
-        // 调试信息
-        _debug: {
-          index: idx,
-          linksCount: allLinks.length,
-          sampleLinks: debugLinks.slice(0, 3),
-          hasTitle: !!title,
-          hasCover: !!cover,
-          dataAttrs: debugData.dataAttrs,
-          onClick: debugData.onClick,
-          extractedFrom: debugData.extractedFrom || 'href'
-        }
+        cover
       };
     });
   }, limit);
 
+  console.log(`\n  📊 提取结果: 共 ${rawData.length} 条`);
+
+  // 过滤掉没有 URL 的条目
+  const extractedNotes = rawData.filter(note => note.url && note.noteId);
+
+  console.log(`  ✅ 有效笔记: ${extractedNotes.length} 条\n`);
+
   // 调试输出
-  console.log(`\n  📊 原始数据提取结果: 共 ${rawData.length} 条`);
-  if (rawData.length > 0) {
-    console.log('\n  样本数据（前 2 条）:');
-    rawData.slice(0, 2).forEach((item: any) => {
-      console.log(`\n    [${item._debug.index + 1}]`);
+  if (extractedNotes.length > 0) {
+    console.log('  📊 样本数据（前 2 条）:');
+    extractedNotes.slice(0, 2).forEach((item, idx) => {
+      console.log(`\n    [${idx + 1}]`);
       console.log(`      标题: ${item.title || '(无)'}`);
-      console.log(`      URL: ${item.url || '(无)'}`);
-      console.log(`      笔记 ID: ${item.noteId || '(无)'}`);
-      console.log(`      提取来源: ${item._debug.extractedFrom}`);
-      console.log(`      封面: ${item.cover ? item.cover.substring(0, 60) + '...' : '(无)'}`);
-      console.log(`      链接数: ${item._debug.linksCount}`);
-      if (item._debug.sampleLinks.length > 0) {
-        console.log(`      样本链接:`);
-        item._debug.sampleLinks.forEach((link: string, idx: number) => {
-          console.log(`        [${idx + 1}] ${link}${link.length >= 80 ? '...' : ''}`);
-        });
-      }
-      if (Object.keys(item._debug.dataAttrs).length > 0) {
-        console.log(`      Data 属性:`, item._debug.dataAttrs);
-      }
-      if (item._debug.onClick) {
-        console.log(`      OnClick: ${item._debug.onClick}...`);
-      }
+      console.log(`      URL: ${item.url.substring(0, 100)}...`);
+      console.log(`      笔记 ID: ${item.noteId}`);
+      console.log(`      封面: ${item.cover.substring(0, 60)}...`);
     });
   }
 
-  // 过滤掉没有 URL 的条目
-  const favorites = rawData
-    .map(({ _debug, ...note }: any) => note) // 移除调试信息
-    .filter(note => note.url && note.noteId);
-
-  console.log(`\n  ✅ 过滤后有效笔记: ${favorites.length} 条\n`);
-
-  return favorites;
+  return extractedNotes;
 }
 
 /**

@@ -8,6 +8,7 @@
     "rednote-init": "dist/cli.js"
   },
   "scripts": {
+    "postinstall": "playwright install chromium",
     "research:favorites": "ts-node research/explore-favorites.ts",
     "research:images": "ts-node research/test-image-download.ts",
     "debug:favorites": "ts-node research/debug-favorites-dom.ts",

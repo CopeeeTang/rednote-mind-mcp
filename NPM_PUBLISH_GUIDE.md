@@ -36,7 +36,7 @@ npm login
 登录成功后，可以验证：
 
 ```bash
-npm whoami
+
 # 应显示你的用户名
 ```
 
