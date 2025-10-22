@@ -89,7 +89,7 @@ async function closeBrowser() {
 const server = new Server(
   {
     name: 'rednote-mind-mcp',
-    version: '0.2.0',
+    version: '0.2.2',
   },
   {
     capabilities: {
@@ -309,7 +309,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         });
         const { limit } = schema.parse(args);
 
-        const favorites = await getFavoritesList(currentPage, 'me', limit);
+        const favorites = await getFavoritesList(currentPage, undefined, limit);
 
         return {
           content: [
@@ -348,7 +348,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         });
         const { limit, includeImages } = schema.parse(args);
 
-        const result = await getBatchNotesFromFavorites(currentPage, 'me', limit, includeImages);
+        const result = await getBatchNotesFromFavorites(currentPage, undefined, limit, includeImages);
 
         return {
           content: [
@@ -413,7 +413,7 @@ async function main() {
   await server.connect(transport);
 
   console.error('🚀 Rednote-Mind-MCP Server 已启动');
-  console.error('📦 版本: 0.2.0');
+  console.error('📦 版本: 0.2.2');
   console.error('🔧 支持的工具:');
   tools.forEach(tool => {
     console.error(`  - ${tool.name}: ${tool.description}`);

@@ -360,15 +360,32 @@ export async function downloadNoteImages(
 
   console.log(`\n  📊 下载完成: 成功 ${images.length}/${imageUrls.length} 张\n`);
 
-  // 5. 返回到笔记页面（如果需要继续提取其他信息）
-  if (images.length > 0) {
+  // 5. 按文件大小去重（避免重复下载相同图片的不同URL）
+  const uniqueImages: ImageData[] = [];
+  const seenSizes = new Set<number>();
+
+  for (const img of images) {
+    if (!seenSizes.has(img.size)) {
+      uniqueImages.push(img);
+      seenSizes.add(img.size);
+    } else {
+      console.log(`  🔄 跳过重复图片 (${(img.size / 1024).toFixed(2)} KB)`);
+    }
+  }
+
+  if (uniqueImages.length < images.length) {
+    console.log(`  ✂️  去重：${images.length} → ${uniqueImages.length} 张图片\n`);
+  }
+
+  // 6. 返回到笔记页面（如果需要继续提取其他信息）
+  if (uniqueImages.length > 0) {
     await page.goto(noteUrl, {
       waitUntil: 'domcontentloaded',
       timeout: 15000
     });
   }
 
-  return images;
+  return uniqueImages;
 }
 
 /**
