@@ -4,6 +4,7 @@
  */
 
 import type { Page } from 'playwright';
+import { logger } from './logger';
 import type { ImageData } from '../types';
 import fs from 'fs';
 import path from 'path';
@@ -19,7 +20,7 @@ import os from 'os';
  * @example
  * ```typescript
  * const images = await downloadNoteImages(page, 'https://www.xiaohongshu.com/explore/...');
- * console.log(`下载了 ${images.length} 张图片`);
+ * logger.debug(`下载了 ${images.length} 张图片`);
  * ```
  */
 export async function downloadNoteImages(
@@ -29,22 +30,22 @@ export async function downloadNoteImages(
 ): Promise<ImageData[]> {
   // 1. 预热：先访问首页建立会话（如果需要）
   if (warmup) {
-    console.log('  🔥 预热：先访问小红书首页建立会话...');
+    logger.debug('  🔥 预热：先访问小红书首页建立会话...');
     try {
       await page.goto('https://www.xiaohongshu.com', {
         waitUntil: 'domcontentloaded',
         timeout: 15000
       });
       await page.waitForTimeout(2000); // 等待 2 秒
-      console.log('  ✅ 预热完成\n');
+      logger.debug('  ✅ 预热完成\n');
     } catch (error) {
-      console.log('  ⚠️ 预热失败，继续尝试访问笔记...\n');
+      logger.debug('  ⚠️ 预热失败，继续尝试访问笔记...\n');
     }
   }
 
   // 2. 导航到笔记详情页（非常重要！）
-  console.log(`  📄 从收藏夹 → 笔记详情页...`);
-  console.log(`  🔗 目标 URL: ${noteUrl.substring(0, 80)}...`);
+  logger.debug(`  📄 从收藏夹 → 笔记详情页...`);
+  logger.debug(`  🔗 目标 URL: ${noteUrl.substring(0, 80)}...`);
 
   await page.goto(noteUrl, {
     waitUntil: 'domcontentloaded',
@@ -53,15 +54,15 @@ export async function downloadNoteImages(
 
   // 验证是否成功进入笔记详情页
   const currentUrl = page.url();
-  console.log(`  ✅ 当前页面: ${currentUrl.substring(0, 80)}...`);
+  logger.debug(`  ✅ 当前页面: ${currentUrl.substring(0, 80)}...`);
 
   // 检查是否被重定向到登录页或其他页面
   if (!currentUrl.includes('/explore/')) {
-    console.log(`  ⚠️ 警告：页面被重定向到 ${currentUrl}`);
-    console.log(`  💡 可能原因：`);
-    console.log(`     1. 登录状态失效`);
-    console.log(`     2. 笔记 URL 不正确`);
-    console.log(`     3. 需要重新登录\n`);
+    logger.debug(`  ⚠️ 警告：页面被重定向到 ${currentUrl}`);
+    logger.debug(`  💡 可能原因：`);
+    logger.debug(`     1. 登录状态失效`);
+    logger.debug(`     2. 笔记 URL 不正确`);
+    logger.debug(`     3. 需要重新登录\n`);
   }
 
   // 3. 检查页面是否可访问
@@ -79,21 +80,21 @@ export async function downloadNoteImages(
   });
 
   if (pageStatus.notFound) {
-    console.log('\n  ❌ 笔记无法访问！');
-    console.log('  💡 可能的原因：');
-    console.log('     1. 笔记已被删除或设为私密');
-    console.log('     2. 需要登录才能查看');
-    console.log('     3. URL 中的 token 已过期');
-    console.log('     4. 笔记 ID 不正确\n');
+    logger.debug('\n  ❌ 笔记无法访问！');
+    logger.debug('  💡 可能的原因：');
+    logger.debug('     1. 笔记已被删除或设为私密');
+    logger.debug('     2. 需要登录才能查看');
+    logger.debug('     3. URL 中的 token 已过期');
+    logger.debug('     4. 笔记 ID 不正确\n');
     return [];
   }
 
   if (pageStatus.needsLogin) {
-    console.log('\n  ⚠️ 检测到需要登录！');
-    console.log('  💡 建议：');
-    console.log('     1. 检查 cookies 是否有效');
-    console.log('     2. 运行 rednote-mcp init 重新登录');
-    console.log('     3. 等待页面加载完成（可能只是提示）\n');
+    logger.debug('\n  ⚠️ 检测到需要登录！');
+    logger.debug('  💡 建议：');
+    logger.debug('     1. 检查 cookies 是否有效');
+    logger.debug('     2. 运行 rednote-mcp init 重新登录');
+    logger.debug('     3. 等待页面加载完成（可能只是提示）\n');
 
     // 继续尝试，因为可能只是一个提示
     await page.waitForTimeout(3000);
@@ -123,20 +124,20 @@ export async function downloadNoteImages(
   });
 
   if (verificationStatus.needsVerification) {
-    console.log('\n  ⚠️ 检测到需要人工验证！');
-    console.log('  💡 请在浏览器窗口中完成验证（滑块/验证码）');
-    console.log('  ⏳ 等待 30 秒供你完成验证...\n');
+    logger.debug('\n  ⚠️ 检测到需要人工验证！');
+    logger.debug('  💡 请在浏览器窗口中完成验证（滑块/验证码）');
+    logger.debug('  ⏳ 等待 30 秒供你完成验证...\n');
     await page.waitForTimeout(30000);
   } else if (verificationStatus.hasContent) {
-    console.log('  ✅ 内容已加载，跳过验证检查');
+    logger.debug('  ✅ 内容已加载，跳过验证检查');
   }
 
   // 3. 等待图片加载
-  console.log('  ⏳ 等待图片加载...');
+  logger.debug('  ⏳ 等待图片加载...');
   await page.waitForTimeout(3000);
 
   // 4. 点击右箭头加载所有图片（轮播图）
-  console.log('  ➡️  点击右箭头加载所有轮播图片...');
+  logger.debug('  ➡️  点击右箭头加载所有轮播图片...');
 
   const slideCount = await page.evaluate(async () => {
     let loadedImages = 0;
@@ -166,7 +167,7 @@ export async function downloadNoteImages(
       }
 
       if (!arrowButton) {
-        console.log(`  未找到右箭头按钮，停止在第 ${i + 1} 张图片`);
+        logger.debug(`  未找到右箭头按钮，停止在第 ${i + 1} 张图片`);
         break;
       }
 
@@ -187,13 +188,13 @@ export async function downloadNoteImages(
     return loadedImages;
   });
 
-  console.log(`  ✅ 点击了 ${slideCount} 次右箭头，加载了 ${slideCount + 1} 张图片\n`);
+  logger.debug(`  ✅ 点击了 ${slideCount} 次右箭头，加载了 ${slideCount + 1} 张图片\n`);
 
   // 额外等待，确保最后一张图片加载完成
   await page.waitForTimeout(1000);
 
   // 5. 查找小红书 CDN 图片
-  console.log('  🔍 查找页面中的图片...');
+  logger.debug('  🔍 查找页面中的图片...');
 
   const debugInfo = await page.evaluate(() => {
     const allImgs = Array.from(document.querySelectorAll('img')) as HTMLImageElement[];
@@ -215,17 +216,17 @@ export async function downloadNoteImages(
     };
   });
 
-  console.log(`  📊 找到总共 ${debugInfo.totalImages} 张图片`);
-  console.log(`  📊 其中小红书 CDN 图片: ${debugInfo.xiaohongshuImages} 张`);
+  logger.debug(`  📊 找到总共 ${debugInfo.totalImages} 张图片`);
+  logger.debug(`  📊 其中小红书 CDN 图片: ${debugInfo.xiaohongshuImages} 张`);
 
   if (debugInfo.totalImages > 0) {
-    console.log('\n  样本图片（前 10 张）:');
+    logger.debug('\n  样本图片（前 10 张）:');
     debugInfo.sampleImages.forEach((img, idx) => {
-      console.log(`    [${idx + 1}] src: ${img.src}`);
-      console.log(`        class: ${img.className}`);
-      console.log(`        alt: ${img.alt}`);
+      logger.debug(`    [${idx + 1}] src: ${img.src}`);
+      logger.debug(`        class: ${img.className}`);
+      logger.debug(`        alt: ${img.alt}`);
     });
-    console.log('');
+    logger.debug('');
   }
 
   const imageUrls = await page.evaluate(() => {
@@ -278,7 +279,7 @@ export async function downloadNoteImages(
       });
 
       if (foundImages.size > 0) {
-        console.log(`  ✅ 使用选择器: ${selector} 找到 ${foundImages.size} 张图片`);
+        logger.debug(`  ✅ 使用选择器: ${selector} 找到 ${foundImages.size} 张图片`);
         break;
       }
     }
@@ -293,7 +294,7 @@ export async function downloadNoteImages(
       });
 
       if (foundImages.size > 0) {
-        console.log(`  ✅ 使用备用策略找到 ${foundImages.size} 张图片`);
+        logger.debug(`  ✅ 使用备用策略找到 ${foundImages.size} 张图片`);
       }
     }
 
@@ -301,16 +302,16 @@ export async function downloadNoteImages(
   });
 
   if (imageUrls.length === 0) {
-    console.log('\n  ⚠️ 未找到任何图片！');
-    console.log('  💡 可能的原因：');
-    console.log('     1. 页面需要更长的加载时间');
-    console.log('     2. 笔记是视频类型（没有图片）');
-    console.log('     3. 需要人工验证（滑块/验证码）');
-    console.log('     4. DOM 结构已变化\n');
+    logger.debug('\n  ⚠️ 未找到任何图片！');
+    logger.debug('  💡 可能的原因：');
+    logger.debug('     1. 页面需要更长的加载时间');
+    logger.debug('     2. 笔记是视频类型（没有图片）');
+    logger.debug('     3. 需要人工验证（滑块/验证码）');
+    logger.debug('     4. DOM 结构已变化\n');
     return [];
   }
 
-  console.log(`\n  ✅ 找到 ${imageUrls.length} 张图片，开始下载...\n`);
+  logger.debug(`\n  ✅ 找到 ${imageUrls.length} 张图片，开始下载...\n`);
 
   // 4. 下载图片并转换为 Base64
   const images: ImageData[] = [];
@@ -318,7 +319,7 @@ export async function downloadNoteImages(
   for (let i = 0; i < imageUrls.length; i++) {
     const imageUrl = imageUrls[i];
     try {
-      console.log(`  [${i + 1}/${imageUrls.length}] 下载: ${imageUrl.substring(0, 60)}...`);
+      logger.debug(`  [${i + 1}/${imageUrls.length}] 下载: ${imageUrl.substring(0, 60)}...`);
 
       // 使用 Playwright 的 page.goto() 方法下载图片
       // 调研结果显示这种方法最可靠
@@ -328,13 +329,13 @@ export async function downloadNoteImages(
       });
 
       if (!response) {
-        console.warn(`  ❌ 无法下载图片: ${imageUrl.substring(0, 60)}...`);
+        logger.warn(`  ❌ 无法下载图片: ${imageUrl.substring(0, 60)}...`);
         continue;
       }
 
       const buffer = await response.body();
       if (!buffer || buffer.length === 0) {
-        console.warn(`  ❌ 图片内容为空: ${imageUrl.substring(0, 60)}...`);
+        logger.warn(`  ❌ 图片内容为空: ${imageUrl.substring(0, 60)}...`);
         continue;
       }
 
@@ -351,14 +352,14 @@ export async function downloadNoteImages(
         mimeType: contentType
       });
 
-      console.log(`  ✅ 成功！大小: ${(buffer.length / 1024).toFixed(2)} KB`);
+      logger.debug(`  ✅ 成功！大小: ${(buffer.length / 1024).toFixed(2)} KB`);
     } catch (error: any) {
-      console.warn(`  ❌ 下载图片失败 ${imageUrl.substring(0, 60)}...: ${error.message}`);
+      logger.warn(`  ❌ 下载图片失败 ${imageUrl.substring(0, 60)}...: ${error.message}`);
       continue;
     }
   }
 
-  console.log(`\n  📊 下载完成: 成功 ${images.length}/${imageUrls.length} 张\n`);
+  logger.debug(`\n  📊 下载完成: 成功 ${images.length}/${imageUrls.length} 张\n`);
 
   // 5. 按文件大小去重（避免重复下载相同图片的不同URL）
   const uniqueImages: ImageData[] = [];
@@ -369,12 +370,12 @@ export async function downloadNoteImages(
       uniqueImages.push(img);
       seenSizes.add(img.size);
     } else {
-      console.log(`  🔄 跳过重复图片 (${(img.size / 1024).toFixed(2)} KB)`);
+      logger.debug(`  🔄 跳过重复图片 (${(img.size / 1024).toFixed(2)} KB)`);
     }
   }
 
   if (uniqueImages.length < images.length) {
-    console.log(`  ✂️  去重：${images.length} → ${uniqueImages.length} 张图片\n`);
+    logger.debug(`  ✂️  去重：${images.length} → ${uniqueImages.length} 张图片\n`);
   }
 
   // 6. 返回到笔记页面（如果需要继续提取其他信息）
@@ -406,7 +407,7 @@ export async function downloadBatchImages(
       const images = await downloadNoteImages(page, noteUrl);
       results.set(noteUrl, images);
     } catch (error: any) {
-      console.error(`下载图片失败 ${noteUrl}: ${error.message}`);
+      logger.debug(`下载图片失败 ${noteUrl}: ${error.message}`);
       results.set(noteUrl, []);
     }
   }
@@ -443,7 +444,7 @@ export function toClaudeVisionFormat(image: ImageData) {
  * ```typescript
  * const images = await downloadNoteImages(page, noteUrl);
  * const savedPaths = await saveImagesToLocal(images, '68bbe7c7000000001d009751');
- * console.log('图片已保存到:', savedPaths);
+ * logger.debug('图片已保存到:', savedPaths);
  * ```
  */
 export function saveImagesToLocal(

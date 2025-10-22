@@ -6,6 +6,7 @@
 import type { Page } from 'playwright';
 import type { FavoriteNote } from '../types';
 import { getUserId } from './auth';
+import { logger } from './logger';
 
 /**
  * 从小红书收藏夹获取笔记列表
@@ -18,7 +19,7 @@ import { getUserId } from './auth';
  * @example
  * ```typescript
  * const favorites = await getFavoritesList(page, '604dbc13000000000101f8b7', 10);
- * console.log(`获取到 ${favorites.length} 条收藏`);
+ * logger.debug(`获取到 ${favorites.length} 条收藏`);
  * ```
  */
 export async function getFavoritesList(
@@ -28,9 +29,9 @@ export async function getFavoritesList(
 ): Promise<FavoriteNote[]> {
   // 如果未提供 userId，从配置文件读取
   const actualUserId = userId || getUserId();
-  console.log(`  👤 使用用户 ID: ${actualUserId}`);
+  logger.debug(`  👤 使用用户 ID: ${actualUserId}`);
   // 1. 访问首页并检查登录状态
-  console.log('  🔐 步骤 1: 访问首页并检查登录状态...');
+  logger.debug('  🔐 步骤 1: 访问首页并检查登录状态...');
   try {
     await page.goto('https://www.xiaohongshu.com', {
       waitUntil: 'domcontentloaded',
@@ -82,23 +83,23 @@ export async function getFavoritesList(
     });
 
     if (!loginStatus.isLoggedIn) {
-      console.log('  ⚠️ 检测到未登录状态！');
-      console.log('  💡 指标检查：');
-      console.log(`     - 用户头像: ${loginStatus.indicators.hasUserAvatar ? '✓' : '✗'}`);
-      console.log(`     - 用户信息 (localStorage): ${loginStatus.indicators.hasUserInfo ? '✓' : '✗'}`);
-      console.log(`     - 登录 Cookies: ${loginStatus.indicators.hasCookies ? '✓' : '✗'}`);
-      console.log(`     - 用户 URL: ${loginStatus.indicators.hasUserInUrl ? '✓' : '✗'}`);
-      console.log(`     - 登录按钮: ${loginStatus.indicators.hasLoginButton ? '✗ (有登录按钮)' : '✓ (无登录按钮)'}`);
-      console.log('\n  🕒 给你 20 秒手动登录...');
-      console.log('  💡 请在浏览器窗口中：');
-      console.log('     1. 点击登录按钮');
-      console.log('     2. 扫码或输入账号密码');
-      console.log('     3. 完成登录');
-      console.log('     4. 看到首页个人中心即表示成功\n');
+      logger.debug('  ⚠️ 检测到未登录状态！');
+      logger.debug('  💡 指标检查：');
+      logger.debug(`     - 用户头像: ${loginStatus.indicators.hasUserAvatar ? '✓' : '✗'}`);
+      logger.debug(`     - 用户信息 (localStorage): ${loginStatus.indicators.hasUserInfo ? '✓' : '✗'}`);
+      logger.debug(`     - 登录 Cookies: ${loginStatus.indicators.hasCookies ? '✓' : '✗'}`);
+      logger.debug(`     - 用户 URL: ${loginStatus.indicators.hasUserInUrl ? '✓' : '✗'}`);
+      logger.debug(`     - 登录按钮: ${loginStatus.indicators.hasLoginButton ? '✗ (有登录按钮)' : '✓ (无登录按钮)'}`);
+      logger.debug('\n  🕒 给你 20 秒手动登录...');
+      logger.debug('  💡 请在浏览器窗口中：');
+      logger.debug('     1. 点击登录按钮');
+      logger.debug('     2. 扫码或输入账号密码');
+      logger.debug('     3. 完成登录');
+      logger.debug('     4. 看到首页个人中心即表示成功\n');
 
       // 等待 20 秒供用户手动登录
       for (let i = 20; i > 0; i -= 5) {
-        console.log(`  ⏳ 剩余 ${i} 秒...`);
+        logger.debug(`  ⏳ 剩余 ${i} 秒...`);
         await page.waitForTimeout(5000);
       }
 
@@ -111,22 +112,22 @@ export async function getFavoritesList(
       });
 
       if (loginStatusAfter) {
-        console.log('  ✅ 登录成功！正在保存登录状态...\n');
+        logger.debug('  ✅ 登录成功！正在保存登录状态...\n');
         // 登录状态会在 test 脚本中自动保存 cookies
       } else {
-        console.log('  ⚠️ 仍未检测到登录状态，继续尝试...\n');
+        logger.debug('  ⚠️ 仍未检测到登录状态，继续尝试...\n');
       }
 
     } else {
-      console.log('  ✅ 登录状态正常\n');
+      logger.debug('  ✅ 登录状态正常\n');
     }
 
   } catch (error) {
-    console.log('  ⚠️ 首页访问失败，继续尝试...\n');
+    logger.debug('  ⚠️ 首页访问失败，继续尝试...\n');
   }
 
   // 2. 导航到收藏夹页面
-  console.log('  📂 访问收藏夹页面...');
+  logger.debug('  📂 访问收藏夹页面...');
   const url = `https://www.xiaohongshu.com/user/profile/${actualUserId}?tab=fav&subTab=note`;
 
   await page.goto(url, {
@@ -136,17 +137,17 @@ export async function getFavoritesList(
 
   // 2. 等待笔记列表渲染完成
   // 根据调研结果，笔记容器是 section.note-item
-  console.log('  🔍 查找收藏笔记...');
-  console.log(`  📄 当前页面 URL: ${page.url()}`);
+  logger.debug('  🔍 查找收藏笔记...');
+  logger.debug(`  📄 当前页面 URL: ${page.url()}`);
   try {
     await page.waitForSelector('section.note-item', { timeout: 30000 }); // 增加超时时间到30秒
 
     // 额外等待，确保 JavaScript 加载完整的链接
-    console.log('  ⏳ 等待链接加载...');
+    logger.debug('  ⏳ 等待链接加载...');
     await page.waitForTimeout(3000);
 
     // 滚动页面，触发懒加载
-    console.log('  📜 滚动页面触发懒加载...');
+    logger.debug('  📜 滚动页面触发懒加载...');
     await page.evaluate(() => {
       window.scrollBy(0, 500); // 向下滚动 500px
     });
@@ -156,13 +157,13 @@ export async function getFavoritesList(
     const noteCount = await page.evaluate(() => {
       return document.querySelectorAll('section.note-item').length;
     });
-    console.log(`  ✅ 找到 ${noteCount} 个笔记元素`);
+    logger.debug(`  ✅ 找到 ${noteCount} 个笔记元素`);
   } catch (error) {
     throw new Error('收藏夹页面加载失败或未找到笔记列表。请确保已登录并有收藏的笔记。');
   }
 
   // 3. 悬停触发链接加载，然后提取URL
-  console.log('  🖱️  悬停笔记提取URL...');
+  logger.debug('  🖱️  悬停笔记提取URL...');
   const noteElements = await page.$$('section.note-item');
   const hoverCount = Math.min(noteElements.length, limit);
 
@@ -176,14 +177,14 @@ export async function getFavoritesList(
 
       if ((i + 1) % 3 === 0) {
         // 每 3 个笔记额外暂停 1-2 秒
-        console.log(`  ⏳ 已悬停 ${i + 1}/${hoverCount}，暂停片刻...`);
+        logger.debug(`  ⏳ 已悬停 ${i + 1}/${hoverCount}，暂停片刻...`);
         await page.waitForTimeout(1000 + Math.random() * 1000);
       }
     } catch (error) {
       // 继续处理下一个
     }
   }
-  console.log(`  ✅ 已悬停 ${hoverCount} 个笔记元素\n`);
+  logger.debug(`  ✅ 已悬停 ${hoverCount} 个笔记元素\n`);
 
   // 4. 提取笔记信息（包含xsec_token的URL）
   const rawData = await page.evaluate((maxItems) => {
@@ -250,22 +251,22 @@ export async function getFavoritesList(
     });
   }, limit);
 
-  console.log(`\n  📊 提取结果: 共 ${rawData.length} 条`);
+  logger.debug(`\n  📊 提取结果: 共 ${rawData.length} 条`);
 
   // 过滤掉没有 URL 的条目
   const extractedNotes = rawData.filter(note => note.url && note.noteId);
 
-  console.log(`  ✅ 有效笔记: ${extractedNotes.length} 条\n`);
+  logger.debug(`  ✅ 有效笔记: ${extractedNotes.length} 条\n`);
 
   // 调试输出
   if (extractedNotes.length > 0) {
-    console.log('  📊 样本数据（前 2 条）:');
+    logger.debug('  📊 样本数据（前 2 条）:');
     extractedNotes.slice(0, 2).forEach((item, idx) => {
-      console.log(`\n    [${idx + 1}]`);
-      console.log(`      标题: ${item.title || '(无)'}`);
-      console.log(`      URL: ${item.url.substring(0, 100)}...`);
-      console.log(`      笔记 ID: ${item.noteId}`);
-      console.log(`      封面: ${item.cover.substring(0, 60)}...`);
+      logger.debug(`\n    [${idx + 1}]`);
+      logger.debug(`      标题: ${item.title || '(无)'}`);
+      logger.debug(`      URL: ${item.url.substring(0, 100)}...`);
+      logger.debug(`      笔记 ID: ${item.noteId}`);
+      logger.debug(`      封面: ${item.cover.substring(0, 60)}...`);
     });
   }
 

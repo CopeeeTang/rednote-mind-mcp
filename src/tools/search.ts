@@ -4,6 +4,7 @@
  */
 
 import type { Page } from 'playwright';
+import { logger } from './logger';
 import type { SearchResult, SearchResultNote } from '../types';
 import { TIMING } from './constants';
 
@@ -19,7 +20,7 @@ import { TIMING } from './constants';
  * @example
  * ```typescript
  * const results = await searchNotesByKeyword(page, 'AI论文', 10, 'popular');
- * console.log(`找到 ${results.results.length} 条结果`);
+ * logger.debug(`找到 ${results.results.length} 条结果`);
  * ```
  */
 export async function searchNotesByKeyword(
@@ -28,14 +29,14 @@ export async function searchNotesByKeyword(
   limit: number = 10,
   sortType: 'general' | 'popular' | 'latest' = 'general'
 ): Promise<SearchResult> {
-  console.error(`\n🔍 搜索关键词: "${keyword}"`);
-  console.error(`  📊 获取数量: ${limit} 条`);
-  console.error(`  📈 排序方式: ${sortType}\n`);
+  logger.debug(`\n🔍 搜索关键词: "${keyword}"`);
+  logger.debug(`  📊 获取数量: ${limit} 条`);
+  logger.debug(`  📈 排序方式: ${sortType}\n`);
 
   try {
     // 1. 访问搜索页面
     const searchUrl = `https://www.xiaohongshu.com/search_result?keyword=${encodeURIComponent(keyword)}&source=web_search_result_notes`;
-    console.error(`  🌐 访问搜索页面...`);
+    logger.debug(`  🌐 访问搜索页面...`);
 
     await page.goto(searchUrl, {
       waitUntil: 'domcontentloaded',
@@ -43,12 +44,12 @@ export async function searchNotesByKeyword(
     });
 
     // 2. 等待搜索结果加载
-    console.error(`  ⏳ 等待搜索结果加载...`);
+    logger.debug(`  ⏳ 等待搜索结果加载...`);
     await page.waitForTimeout(TIMING.SEARCH_RESULT_RENDER_MS); // 等待页面JavaScript渲染
 
     // 3. 处理排序（如果需要）
     if (sortType !== 'general') {
-      console.error(`  🔄 切换排序方式: ${sortType}...`);
+      logger.debug(`  🔄 切换排序方式: ${sortType}...`);
       try {
         // 根据sortType点击对应的排序按钮
         const sortMap: Record<string, string> = {
@@ -70,13 +71,13 @@ export async function searchNotesByKeyword(
           await page.waitForTimeout(TIMING.SEARCH_SORT_DELAY_MS); // 等待排序结果加载
         }
       } catch (error) {
-        console.error(`  ⚠️ 排序切换失败，使用默认排序`);
+        logger.debug(`  ⚠️ 排序切换失败，使用默认排序`);
       }
     }
 
     // 4. 滚动页面加载更多结果（如果需要）
     if (limit > 20) {
-      console.error(`  📜 滚动加载更多结果...`);
+      logger.debug(`  📜 滚动加载更多结果...`);
       await page.evaluate(() => {
         window.scrollBy(0, 1000);
       });
@@ -84,7 +85,7 @@ export async function searchNotesByKeyword(
     }
 
     // 5. 查找笔记元素
-    console.error(`  🔍 查找笔记元素...`);
+    logger.debug(`  🔍 查找笔记元素...`);
     const containerSelectors = [
       'section.note-item',
       '[class*="note-item"]',
@@ -96,7 +97,7 @@ export async function searchNotesByKeyword(
     for (const selector of containerSelectors) {
       noteElements = await page.$$(selector);
       if (noteElements.length > 0) {
-        console.error(`  ✅ 找到 ${noteElements.length} 个笔记元素 (选择器: ${selector})`);
+        logger.debug(`  ✅ 找到 ${noteElements.length} 个笔记元素 (选择器: ${selector})`);
         break;
       }
     }
@@ -105,11 +106,11 @@ export async function searchNotesByKeyword(
     if (noteElements.length === 0) {
       const links = await page.$$('a[href*="/explore/"]');
       noteElements = links.slice(0, limit);
-      console.error(`  ✅ 找到 ${noteElements.length} 个笔记链接`);
+      logger.debug(`  ✅ 找到 ${noteElements.length} 个笔记链接`);
     }
 
     // 6. 悬停触发链接加载，提取xsec_token
-    console.error(`  🖱️  悬停笔记提取URL...`);
+    logger.debug(`  🖱️  悬停笔记提取URL...`);
     const hoverCount = Math.min(noteElements.length, limit);
 
     for (let i = 0; i < hoverCount; i++) {
@@ -124,7 +125,7 @@ export async function searchNotesByKeyword(
 
         if ((i + 1) % TIMING.HOVER_BATCH_SIZE === 0) {
           // 每一批额外暂停，避免频率过高
-          console.error(`  ⏳ 已悬停 ${i + 1}/${hoverCount}，暂停片刻...`);
+          logger.debug(`  ⏳ 已悬停 ${i + 1}/${hoverCount}，暂停片刻...`);
           const batchPause =
             TIMING.HOVER_BATCH_PAUSE_MIN_MS +
             Math.random() * (TIMING.HOVER_BATCH_PAUSE_MAX_MS - TIMING.HOVER_BATCH_PAUSE_MIN_MS);
@@ -134,10 +135,10 @@ export async function searchNotesByKeyword(
         // 继续处理下一个
       }
     }
-    console.error(`  ✅ 已悬停 ${hoverCount} 个笔记元素\n`);
+    logger.debug(`  ✅ 已悬停 ${hoverCount} 个笔记元素\n`);
 
     // 7. 提取搜索结果（包含xsec_token的URL）
-    console.error(`  📦 提取搜索结果...`);
+    logger.debug(`  📦 提取搜索结果...`);
     const rawData = await page.evaluate((maxResults) => {
       const items = Array.from(document.querySelectorAll('section.note-item, [class*="note-item"]')).slice(0, maxResults);
 
@@ -228,14 +229,14 @@ export async function searchNotesByKeyword(
       });
     }, limit);
 
-    console.log(`\n  📊 提取结果: 共 ${rawData.length} 条`);
+    logger.debug(`\n  📊 提取结果: 共 ${rawData.length} 条`);
 
     // 过滤掉没有 URL 的条目
     const results = rawData.filter(note => note.url && note.noteId);
 
-    console.log(`  ✅ 有效笔记: ${results.length} 条\n`);
+    logger.debug(`  ✅ 有效笔记: ${results.length} 条\n`);
 
-    console.error(`\n✅ 搜索完成！找到 ${results.length} 条结果\n`);
+    logger.debug(`\n✅ 搜索完成！找到 ${results.length} 条结果\n`);
 
     return {
       keyword,
@@ -244,7 +245,7 @@ export async function searchNotesByKeyword(
     };
 
   } catch (error: any) {
-    console.error(`\n❌ 搜索失败: ${error.message}\n`);
+    logger.debug(`\n❌ 搜索失败: ${error.message}\n`);
     throw new Error(`搜索失败: ${error.message}`);
   }
 }

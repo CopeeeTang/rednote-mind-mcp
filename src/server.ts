@@ -5,6 +5,9 @@
  * MCP 服务器入口，支持收藏夹和图片下载
  */
 
+// 设置 MCP 模式环境变量，禁用工具中的调试日志
+process.env.MCP_MODE = 'true';
+
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import {
@@ -17,6 +20,16 @@ import fs from 'fs';
 import path from 'path';
 import os from 'os';
 import { z } from 'zod';
+
+// MCP 要求 stdout 仅用于协议消息，这里把所有标准输出重定向到 stderr
+const originalConsoleError = console.error.bind(console);
+const redirectToStderr = (...args: unknown[]) => {
+  originalConsoleError(...args);
+};
+console.log = redirectToStderr;
+console.info = redirectToStderr;
+console.debug = redirectToStderr;
+console.warn = redirectToStderr;
 
 // 导入工具函数
 import { checkLoginStatus, loginToXiaohongshu, loadSavedCookies, hasSavedCookies } from './tools/auth';
@@ -89,7 +102,7 @@ async function closeBrowser() {
 const server = new Server(
   {
     name: 'rednote-mind-mcp',
-    version: '0.2.2',
+    version: '0.2.5',
   },
   {
     capabilities: {
@@ -413,7 +426,7 @@ async function main() {
   await server.connect(transport);
 
   console.error('🚀 Rednote-Mind-MCP Server 已启动');
-  console.error('📦 版本: 0.2.2');
+  console.error('📦 版本: 0.2.5');
   console.error('🔧 支持的工具:');
   tools.forEach(tool => {
     console.error(`  - ${tool.name}: ${tool.description}`);

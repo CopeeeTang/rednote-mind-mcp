@@ -3,6 +3,7 @@
  */
 
 import type { Page } from 'playwright';
+import { logger } from './logger';
 import type { NoteContentWithImages } from '../types';
 import { downloadNoteImages } from './imageDownloader';
 
@@ -18,8 +19,8 @@ import { downloadNoteImages } from './imageDownloader';
  * @example
  * ```typescript
  * const note = await getNoteContent(page, 'https://www.xiaohongshu.com/explore/xxx', true, true);
- * console.log(note.title);
- * console.log(note.images.length); // 图片数量
+ * logger.debug(note.title);
+ * logger.debug(note.images.length); // 图片数量
  * ```
  */
 export async function getNoteContent(
@@ -28,23 +29,23 @@ export async function getNoteContent(
   includeImages: boolean = true,
   includeData: boolean = true
 ): Promise<NoteContentWithImages> {
-  console.log(`📖 正在获取笔记内容: ${noteUrl.substring(0, 60)}...`);
+  logger.debug(`📖 正在获取笔记内容: ${noteUrl.substring(0, 60)}...`);
 
   // 1. 预热：先访问首页建立会话（重要！避免403/404）
-  console.log('  🔥 预热：先访问小红书首页建立会话...');
+  logger.debug('  🔥 预热：先访问小红书首页建立会话...');
   try {
     await page.goto('https://www.xiaohongshu.com', {
       waitUntil: 'domcontentloaded',
       timeout: 15000
     });
     await page.waitForTimeout(2000);
-    console.log('  ✅ 预热完成');
+    logger.debug('  ✅ 预热完成');
   } catch (error) {
-    console.log('  ⚠️ 预热失败，继续尝试访问笔记...');
+    logger.debug('  ⚠️ 预热失败，继续尝试访问笔记...');
   }
 
   // 2. 访问笔记详情页
-  console.log(`  📄 访问笔记详情页: ${noteUrl.substring(0, 60)}...`);
+  logger.debug(`  📄 访问笔记详情页: ${noteUrl.substring(0, 60)}...`);
   await page.goto(noteUrl, {
     waitUntil: 'domcontentloaded',
     timeout: 30000
@@ -154,11 +155,11 @@ export async function getNoteContent(
     };
   }, includeData);
 
-  console.log(`  ✅ 标题: ${metadata.title}`);
-  console.log(`  ✅ 作者: ${metadata.author.name}`);
-  console.log(`  ✅ 正文长度: ${metadata.content.length} 字`);
+  logger.debug(`  ✅ 标题: ${metadata.title}`);
+  logger.debug(`  ✅ 作者: ${metadata.author.name}`);
+  logger.debug(`  ✅ 正文长度: ${metadata.content.length} 字`);
   if (includeData) {
-    console.log(`  ✅ 标签: ${metadata.tags.join(', ') || '无'}`);
+    logger.debug(`  ✅ 标签: ${metadata.tags.join(', ') || '无'}`);
   }
 
   // 3. 下载图片（如果需要）
@@ -167,9 +168,9 @@ export async function getNoteContent(
     try {
       // warmup=false 因为我们已经在上面预热过了
       images = await downloadNoteImages(page, noteUrl, false);
-      console.log(`  ✅ 图片数量: ${images.length}`);
+      logger.debug(`  ✅ 图片数量: ${images.length}`);
     } catch (error: any) {
-      console.log(`  ⚠️ 图片下载失败: ${error.message}`);
+      logger.debug(`  ⚠️ 图片下载失败: ${error.message}`);
       // 图片下载失败不影响文本内容获取
     }
   }

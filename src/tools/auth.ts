@@ -3,6 +3,7 @@
  */
 
 import type { Page } from 'playwright';
+import { logger } from './logger';
 import type { LoginResult } from '../types';
 import fs from 'fs';
 import path from 'path';
@@ -19,7 +20,7 @@ export const CONFIG_PATH = path.join(os.homedir(), '.mcp', 'rednote', 'config.js
  * @returns 登录状态信息
  */
 export async function checkLoginStatus(page: Page): Promise<{ isLoggedIn: boolean; message: string }> {
-  console.error('🔐 检测登录状态...');
+  logger.debug('🔐 检测登录状态...');
 
   try {
     // 访问首页
@@ -55,20 +56,20 @@ export async function checkLoginStatus(page: Page): Promise<{ isLoggedIn: boolea
     });
 
     if (loginStatus.isLoggedIn) {
-      console.error('✅ 已登录');
+      logger.debug('✅ 已登录');
       return {
         isLoggedIn: true,
         message: '已登录小红书，cookies有效'
       };
     } else {
-      console.error('❌ 未登录');
+      logger.debug('❌ 未登录');
       return {
         isLoggedIn: false,
         message: '未登录。请使用 login 工具进行登录'
       };
     }
   } catch (error: any) {
-    console.error('⚠️ 登录状态检查失败:', error.message);
+    logger.debug('⚠️ 登录状态检查失败:', error.message);
     return {
       isLoggedIn: false,
       message: `登录状态检查失败: ${error.message}`
@@ -87,18 +88,18 @@ export async function loginToXiaohongshu(
   page: Page,
   timeout: number = 60000
 ): Promise<LoginResult> {
-  console.error('\n🔐 开始登录流程...\n');
-  console.error('=' .repeat(80));
-  console.error('\n📌 登录说明：');
-  console.error('  1. 浏览器窗口将打开小红书首页');
-  console.error('  2. 请点击登录按钮');
-  console.error('  3. 使用扫码或密码方式登录');
-  console.error(`  4. 完成登录后，系统会在 ${timeout / 1000} 秒内自动检测并保存登录状态\n`);
-  console.error('=' .repeat(80));
+  logger.debug('\n🔐 开始登录流程...\n');
+  logger.debug('=' .repeat(80));
+  logger.debug('\n📌 登录说明：');
+  logger.debug('  1. 浏览器窗口将打开小红书首页');
+  logger.debug('  2. 请点击登录按钮');
+  logger.debug('  3. 使用扫码或密码方式登录');
+  logger.debug(`  4. 完成登录后，系统会在 ${timeout / 1000} 秒内自动检测并保存登录状态\n`);
+  logger.debug('=' .repeat(80));
 
   try {
     // 访问首页
-    console.error('\n🌐 正在打开小红书首页...');
+    logger.debug('\n🌐 正在打开小红书首页...');
     await page.goto('https://www.xiaohongshu.com', {
       waitUntil: 'domcontentloaded',
       timeout: 15000
@@ -108,7 +109,7 @@ export async function loginToXiaohongshu(
     // 检查是否已登录
     const initialStatus = await checkLoginStatus(page);
     if (initialStatus.isLoggedIn) {
-      console.error('✅ 检测到已登录状态，无需重新登录');
+      logger.debug('✅ 检测到已登录状态，无需重新登录');
       const existingUserId = loadUserId();
       const hasValidUserId = Boolean(
         existingUserId &&
@@ -118,7 +119,7 @@ export async function loginToXiaohongshu(
       let warnings: string[] | undefined;
       if (!hasValidUserId) {
         const warning = '已检测到登录状态，但未找到有效的用户 ID。收藏夹功能可能受限，请手动访问个人主页或重新运行 rednote-init。';
-        console.error(`⚠️  ${warning}`);
+        logger.debug(`⚠️  ${warning}`);
         warnings = [warning];
       }
       return {
@@ -130,8 +131,8 @@ export async function loginToXiaohongshu(
     }
 
     // 等待用户完成登录
-    console.error('\n⏳ 等待用户完成登录...');
-    console.error(`💡 请在浏览器窗口中完成登录操作（${timeout / 1000}秒超时）\n`);
+    logger.debug('\n⏳ 等待用户完成登录...');
+    logger.debug(`💡 请在浏览器窗口中完成登录操作（${timeout / 1000}秒超时）\n`);
 
     const startTime = Date.now();
     const checkInterval = TIMING.LOGIN_CHECK_INTERVAL_MS; // 每3秒检查一次
@@ -153,7 +154,7 @@ export async function loginToXiaohongshu(
       });
 
       if (currentStatus) {
-        console.error('✅ 检测到登录成功！');
+        logger.debug('✅ 检测到登录成功！');
 
         const context = page.context();
         const cookies = await context.cookies();
@@ -164,18 +165,18 @@ export async function loginToXiaohongshu(
             fs.mkdirSync(cookieDir, { recursive: true });
           }
           fs.writeFileSync(COOKIE_PATH, JSON.stringify(cookies, null, 2), 'utf-8');
-          console.error(`💾 已保存 ${cookies.length} 个 cookies 到: ${COOKIE_PATH}`);
+          logger.debug(`💾 已保存 ${cookies.length} 个 cookies 到: ${COOKIE_PATH}`);
         }
 
         const warnings: string[] = [];
         let userIdExtracted = false;
         const appendWarning = (message: string) => {
           warnings.push(message);
-          console.error(`⚠️  ${message}`);
+          logger.debug(`⚠️  ${message}`);
         };
 
         try {
-          console.error('🔍 正在提取用户 ID...');
+          logger.debug('🔍 正在提取用户 ID...');
 
           await page.goto('https://www.xiaohongshu.com', {
             waitUntil: 'domcontentloaded',
@@ -183,7 +184,7 @@ export async function loginToXiaohongshu(
           });
           await page.waitForTimeout(TIMING.USER_ID_EXTRACTION_DELAY_MS);
 
-          console.error('   正在查找"我"的按钮...');
+          logger.debug('   正在查找"我"的按钮...');
 
           const profileButtonHandle = await page.evaluateHandle<HTMLElement | null>(() => {
             const findProfileButton = () => {
@@ -225,11 +226,11 @@ export async function loginToXiaohongshu(
               }
 
               if (navigationSucceeded) {
-                console.error('   已点击"我"的按钮，等待页面跳转...');
+                logger.debug('   已点击"我"的按钮，等待页面跳转...');
                 await page.waitForTimeout(TIMING.POST_PROFILE_NAV_DELAY_MS);
 
                 const currentUrl = page.url();
-                console.error(`   跳转后URL: ${currentUrl}`);
+                logger.debug(`   跳转后URL: ${currentUrl}`);
 
                 const userId = await page.evaluate((minLength: number) => {
                   const match = window.location.pathname.match(/\/user\/profile\/([a-zA-Z0-9]+)/);
@@ -240,12 +241,12 @@ export async function loginToXiaohongshu(
                   return null;
                 }, USER_CONSTANTS.MIN_USER_ID_LENGTH);
 
-                console.error(`   提取到的用户ID: ${userId}`);
+                logger.debug(`   提取到的用户ID: ${userId}`);
 
                 if (userId) {
                   saveUserId(userId);
-                  console.error(`✅ 用户 ID 已保存到配置文件: ${userId}`);
-                  console.error(`   配置文件路径: ${CONFIG_PATH}`);
+                  logger.debug(`✅ 用户 ID 已保存到配置文件: ${userId}`);
+                  logger.debug(`   配置文件路径: ${CONFIG_PATH}`);
                   userIdExtracted = true;
                 } else {
                   appendWarning('登录成功，但未能提取有效的用户 ID。请手动访问个人主页或重新运行 rednote-init。');
@@ -264,9 +265,9 @@ export async function loginToXiaohongshu(
           appendWarning(`提取用户 ID 时出错：${error.message}`);
         }
 
-        console.error('\n' + '='.repeat(80));
-        console.error('✅ 登录成功！后续操作将自动使用保存的登录状态');
-        console.error('=' .repeat(80) + '\n');
+        logger.debug('\n' + '='.repeat(80));
+        logger.debug('✅ 登录成功！后续操作将自动使用保存的登录状态');
+        logger.debug('=' .repeat(80) + '\n');
 
         return {
           success: true,
@@ -278,11 +279,11 @@ export async function loginToXiaohongshu(
 
       const elapsed = Math.floor((Date.now() - startTime) / 1000);
       const remaining = Math.floor((timeout - (Date.now() - startTime)) / 1000);
-      console.error(`⏳ 仍在等待登录... (已等待 ${elapsed}秒，剩余 ${remaining}秒)`);
+      logger.debug(`⏳ 仍在等待登录... (已等待 ${elapsed}秒，剩余 ${remaining}秒)`);
     }
 
     // 超时
-    console.error('\n❌ 登录超时');
+    logger.debug('\n❌ 登录超时');
     return {
       success: false,
       message: `登录超时。请确保在 ${timeout / 1000} 秒内完成登录操作`,
@@ -290,7 +291,7 @@ export async function loginToXiaohongshu(
     };
 
   } catch (error: any) {
-    console.error('\n❌ 登录过程中出错:', error.message);
+    logger.debug('\n❌ 登录过程中出错:', error.message);
     return {
       success: false,
       message: `登录失败: ${error.message}`,
@@ -309,7 +310,7 @@ export function loadSavedCookies(): any[] {
       return JSON.parse(cookieData);
     }
   } catch (error) {
-    console.error('❌ 加载 cookies 失败:', error);
+    logger.debug('❌ 加载 cookies 失败:', error);
   }
   return [];
 }
@@ -334,7 +335,7 @@ export function saveUserId(userId: string): void {
     const config = { userId };
     fs.writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2), 'utf-8');
   } catch (error) {
-    console.error('❌ 保存用户 ID 失败:', error);
+    logger.debug('❌ 保存用户 ID 失败:', error);
   }
 }
 
@@ -350,7 +351,7 @@ export function loadUserId(): string | null {
     const configData = fs.readFileSync(CONFIG_PATH, 'utf-8');
 
     if (!configData.trim()) {
-      console.error('⚠️ config.json 文件为空，将忽略并等待重新生成。');
+      logger.debug('⚠️ config.json 文件为空，将忽略并等待重新生成。');
       return null;
     }
 
@@ -358,12 +359,12 @@ export function loadUserId(): string | null {
     try {
       config = JSON.parse(configData);
     } catch (parseError) {
-      console.error('❌ config.json 格式错误，将删除并重新创建:', parseError);
+      logger.debug('❌ config.json 格式错误，将删除并重新创建:', parseError);
       try {
         fs.unlinkSync(CONFIG_PATH);
-        console.error(`🧹 已删除损坏的配置文件: ${CONFIG_PATH}`);
+        logger.debug(`🧹 已删除损坏的配置文件: ${CONFIG_PATH}`);
       } catch (unlinkError) {
-        console.error('⚠️ 删除损坏的 config.json 失败:', unlinkError);
+        logger.debug('⚠️ 删除损坏的 config.json 失败:', unlinkError);
       }
       return null;
     }
@@ -374,10 +375,10 @@ export function loadUserId(): string | null {
     }
 
     if (userId) {
-      console.error('⚠️ config.json 中的 userId 格式无效，将忽略该值。');
+      logger.debug('⚠️ config.json 中的 userId 格式无效，将忽略该值。');
     }
   } catch (error) {
-    console.error('❌ 加载用户 ID 失败:', error);
+    logger.debug('❌ 加载用户 ID 失败:', error);
   }
   return null;
 }
