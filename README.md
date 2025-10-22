@@ -110,6 +110,11 @@ rednote-mind-mcp init
 
 ### 配置MCP客户端
 
+**配置说明**：
+- 所有配置使用标准的 `npx` 方式调用，确保跨平台兼容性
+- `-y` 参数让 npx 跳过确认提示，自动安装或使用最新版本
+- 配置后需要**完全退出并重启**客户端才能生效
+
 <details>
 <summary><strong>Claude Desktop</strong>（点击展开）</summary>
 
@@ -120,7 +125,8 @@ rednote-mind-mcp init
 {
   "mcpServers": {
     "rednote": {
-      "command": "rednote-mind-mcp"
+      "command": "npx",
+      "args": ["-y", "rednote-mind-mcp"]
     }
   }
 }
@@ -133,14 +139,26 @@ rednote-mind-mcp init
 {
   "mcpServers": {
     "rednote": {
-      "command": "rednote-mind-mcp"
+      "command": "npx",
+      "args": ["-y", "rednote-mind-mcp"]
     }
   }
 }
 ```
 
 #### Linux
-编辑 `~/.config/Claude/claude_desktop_config.json`（同macOS配置）
+编辑 `~/.config/Claude/claude_desktop_config.json`：
+
+```json
+{
+  "mcpServers": {
+    "rednote": {
+      "command": "npx",
+      "args": ["-y", "rednote-mind-mcp"]
+    }
+  }
+}
+```
 
 **重启Claude Desktop生效**
 
@@ -155,7 +173,8 @@ rednote-mind-mcp init
 {
   "mcpServers": {
     "rednote": {
-      "command": "rednote-mind-mcp"
+      "command": "npx",
+      "args": ["-y", "rednote-mind-mcp"]
     }
   }
 }
@@ -174,7 +193,8 @@ rednote-mind-mcp init
 {
   "cline.mcpServers": {
     "rednote": {
-      "command": "rednote-mind-mcp"
+      "command": "npx",
+      "args": ["-y", "rednote-mind-mcp"]
     }
   }
 }
@@ -192,7 +212,8 @@ rednote-mind-mcp init
 {
   "mcpServers": {
     "rednote": {
-      "command": "rednote-mind-mcp"
+      "command": "npx",
+      "args": ["-y", "rednote-mind-mcp"]
     }
   }
 }
@@ -209,7 +230,8 @@ rednote-mind-mcp init
 {
   "mcpServers": {
     "rednote": {
-      "command": "rednote-mind-mcp"
+      "command": "npx",
+      "args": ["-y", "rednote-mind-mcp"]
     }
   }
 }
@@ -226,7 +248,8 @@ rednote-mind-mcp init
 {
   "mcpServers": {
     "rednote": {
-      "command": "rednote-mind-mcp"
+      "command": "npx",
+      "args": ["-y", "rednote-mind-mcp"]
     }
   }
 }
@@ -513,8 +536,8 @@ MIT License - 详见 [LICENSE](./LICENSE)
 
 ---
 
-**最后更新**: 2025-10-21
-**版本**: 0.2.0
+**最后更新**: 2025-10-23
+**版本**: 0.2.5
 **GitHub**: [https://github.com/CopeeeTang/rednote-mind-mcp](https://github.com/CopeeeTang/rednote-mind-mcp)
 
 ---
