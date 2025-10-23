@@ -182,13 +182,13 @@ const tools: Tool[] = [
   },
   {
     name: 'get_note_content',
-    description: '获取笔记的完整内容。可选择是否包含图片和详细数据（标签、点赞、收藏、评论）。',
+    description: '获取笔记的完整内容。可选择是否包含图片和详细数据（标签、点赞、收藏、评论）。重要：必须使用从 get_favorites_list 或 search_notes_by_keyword 返回的带 xsec_token 参数的完整 URL，否则可能访问失败。',
     inputSchema: {
       type: 'object',
       properties: {
         noteUrl: {
           type: 'string',
-          description: '笔记 URL（如：https://www.xiaohongshu.com/explore/xxx）'
+          description: '笔记 URL（必须是从收藏夹或搜索结果中获取的带 xsec_token 参数的完整 URL，如：https://www.xiaohongshu.com/explore/xxx?xsec_token=...）'
         },
         includeImages: {
           type: 'boolean',
@@ -206,7 +206,7 @@ const tools: Tool[] = [
   },
   {
     name: 'get_batch_notes_from_favorites',
-    description: '从当前用户收藏夹批量获取笔记的完整内容（包含文本和图片）。适用于批量分析收藏的笔记。',
+    description: '从当前用户收藏夹批量获取笔记的完整内容（包含文本和图片）。此工具会自动调用 get_favorites_list 获取收藏列表，然后对每条笔记调用 get_note_content 获取详细内容。所有URL会自动包含 xsec_token 参数。适用于批量分析收藏的笔记。',
     inputSchema: {
       type: 'object',
       properties: {
@@ -227,13 +227,13 @@ const tools: Tool[] = [
   },
   {
     name: 'download_note_images',
-    description: '下载笔记的所有图片（Base64 编码），包括轮播图中的所有图片。',
+    description: '下载笔记的所有图片（Base64 编码），包括轮播图中的所有图片。重要：必须使用从 get_favorites_list 或 search_notes_by_keyword 返回的带 xsec_token 参数的完整 URL，否则可能访问失败。',
     inputSchema: {
       type: 'object',
       properties: {
         noteUrl: {
           type: 'string',
-          description: '笔记 URL'
+          description: '笔记 URL（必须是从收藏夹或搜索结果中获取的带 xsec_token 参数的完整 URL）'
         }
       },
       required: ['noteUrl']
