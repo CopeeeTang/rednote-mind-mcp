@@ -102,7 +102,7 @@ async function closeBrowser() {
 const server = new Server(
   {
     name: 'rednote-mind-mcp',
-    version: '0.2.5',
+    version: '0.2.6',
   },
   {
     capabilities: {
@@ -426,7 +426,7 @@ async function main() {
   await server.connect(transport);
 
   console.error('🚀 Rednote-Mind-MCP Server 已启动');
-  console.error('📦 版本: 0.2.5');
+  console.error('📦 版本: 0.2.6');
   console.error('🔧 支持的工具:');
   tools.forEach(tool => {
     console.error(`  - ${tool.name}: ${tool.description}`);

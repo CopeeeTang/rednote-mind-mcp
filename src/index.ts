@@ -12,5 +12,5 @@ export * from './tools/noteContent';
 export * from './tools/batchNotes';
 
 // 版本信息
-export const VERSION = '0.2.5';
+export const VERSION = '0.2.6';
 export const DESCRIPTION = 'Rednote-Mind-MCP - Enhanced RedNote-MCP with login, favorites, search and image download support';
