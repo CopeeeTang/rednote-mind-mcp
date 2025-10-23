@@ -167,7 +167,7 @@ export async function downloadNoteImages(
       }
 
       if (!arrowButton) {
-        logger.debug(`  未找到右箭头按钮，停止在第 ${i + 1} 张图片`);
+        // 未找到右箭头按钮，停止
         break;
       }
 
@@ -279,7 +279,7 @@ export async function downloadNoteImages(
       });
 
       if (foundImages.size > 0) {
-        logger.debug(`  ✅ 使用选择器: ${selector} 找到 ${foundImages.size} 张图片`);
+        // 使用当前选择器找到图片，停止尝试其他选择器
         break;
       }
     }
@@ -292,10 +292,6 @@ export async function downloadNoteImages(
           foundImages.add(img.src);
         }
       });
-
-      if (foundImages.size > 0) {
-        logger.debug(`  ✅ 使用备用策略找到 ${foundImages.size} 张图片`);
-      }
     }
 
     return Array.from(foundImages);
