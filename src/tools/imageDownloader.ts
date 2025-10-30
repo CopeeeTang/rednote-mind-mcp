@@ -6,28 +6,54 @@
 import type { Page } from 'playwright';
 import { logger } from './logger';
 import type { ImageData } from '../types';
+import { compressImage, type CompressionOptions } from './imageCompressor.js';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
+
+/**
+ * 图片下载选项
+ */
+export interface ImageDownloadOptions {
+  /** 是否预热（访问首页建立会话） */
+  warmup?: boolean;
+  /** 是否压缩图片 */
+  compressImages?: boolean;
+  /** 图片质量 (50-95)，默认 75 */
+  imageQuality?: number;
+  /** 最大图片尺寸（像素），默认 1920 */
+  maxImageSize?: number;
+}
 
 /**
  * 从笔记页面下载所有图片
  *
  * @param page Playwright Page 实例
  * @param noteUrl 笔记 URL
+ * @param options 下载选项
  * @returns 图片数据列表（Base64 编码）
  *
  * @example
  * ```typescript
- * const images = await downloadNoteImages(page, 'https://www.xiaohongshu.com/explore/...');
+ * const images = await downloadNoteImages(page, 'https://www.xiaohongshu.com/explore/...', {
+ *   compressImages: true,
+ *   imageQuality: 75
+ * });
  * logger.debug(`下载了 ${images.length} 张图片`);
  * ```
  */
 export async function downloadNoteImages(
   page: Page,
   noteUrl: string,
-  warmup: boolean = true
+  options: ImageDownloadOptions = {}
 ): Promise<ImageData[]> {
+  // 解构选项，设置默认值
+  const {
+    warmup = true,
+    compressImages = true,
+    imageQuality = 75,
+    maxImageSize = 1920
+  } = options;
   // 1. 预热：先访问首页建立会话（如果需要）
   if (warmup) {
     logger.debug('  🔥 预热：先访问小红书首页建立会话...');
@@ -329,14 +355,55 @@ export async function downloadNoteImages(
         continue;
       }
 
-      const buffer = await response.body();
-      if (!buffer || buffer.length === 0) {
+      const originalBuffer = await response.body();
+      if (!originalBuffer || originalBuffer.length === 0) {
         logger.warn(`  ❌ 图片内容为空: ${imageUrl.substring(0, 60)}...`);
         continue;
       }
 
+      const originalSize = originalBuffer.length;
+      logger.debug(`  📦 原始大小: ${(originalSize / 1024).toFixed(2)} KB`);
+
+      // 智能压缩图片（如果启用）
+      let finalBuffer = originalBuffer;
+      let compressionMeta: {
+        originalSize?: number;
+        compressionRatio?: number;
+        width?: number;
+        height?: number;
+      } = {};
+
+      if (compressImages) {
+        try {
+          const compressionOptions: Partial<CompressionOptions> = {
+            maxWidth: maxImageSize,
+            maxHeight: maxImageSize,
+            quality: imageQuality,
+            format: 'jpeg'
+          };
+
+          const compressionResult = await compressImage(originalBuffer, compressionOptions);
+          finalBuffer = compressionResult.compressed;
+          compressionMeta = {
+            originalSize: compressionResult.metadata.originalSize,
+            compressionRatio: compressionResult.metadata.compressionRatio,
+            width: compressionResult.metadata.width,
+            height: compressionResult.metadata.height
+          };
+
+          logger.debug(
+            `  🗜️  压缩: ${(originalSize / 1024).toFixed(2)} KB → ${(finalBuffer.length / 1024).toFixed(2)} KB ` +
+            `(节省 ${compressionMeta.compressionRatio?.toFixed(1)}%)`
+          );
+        } catch (compressionError: any) {
+          logger.warn(`  ⚠️ 压缩失败，使用原图: ${compressionError.message}`);
+          finalBuffer = originalBuffer;
+          compressionMeta = {};
+        }
+      }
+
       // 转换为 Base64
-      const base64 = buffer.toString('base64');
+      const base64 = finalBuffer.toString('base64');
 
       // 获取 MIME 类型
       const contentType = response.headers()['content-type'] || 'image/jpeg';
@@ -344,11 +411,15 @@ export async function downloadNoteImages(
       images.push({
         url: imageUrl,
         base64,
-        size: buffer.length,
-        mimeType: contentType
+        size: finalBuffer.length,
+        originalSize: compressionMeta.originalSize,
+        compressionRatio: compressionMeta.compressionRatio,
+        width: compressionMeta.width,
+        height: compressionMeta.height,
+        mimeType: compressImages ? 'image/jpeg' : contentType
       });
 
-      logger.debug(`  ✅ 成功！大小: ${(buffer.length / 1024).toFixed(2)} KB`);
+      logger.debug(`  ✅ 成功！最终大小: ${(finalBuffer.length / 1024).toFixed(2)} KB`);
     } catch (error: any) {
       logger.warn(`  ❌ 下载图片失败 ${imageUrl.substring(0, 60)}...: ${error.message}`);
       continue;
@@ -390,17 +461,19 @@ export async function downloadNoteImages(
  *
  * @param page Playwright Page 实例
  * @param noteUrls 笔记 URL 列表
+ * @param options 下载选项
  * @returns 图片数据映射（URL -> 图片列表）
  */
 export async function downloadBatchImages(
   page: Page,
-  noteUrls: string[]
+  noteUrls: string[],
+  options: ImageDownloadOptions = {}
 ): Promise<Map<string, ImageData[]>> {
   const results = new Map<string, ImageData[]>();
 
   for (const noteUrl of noteUrls) {
     try {
-      const images = await downloadNoteImages(page, noteUrl);
+      const images = await downloadNoteImages(page, noteUrl, options);
       results.set(noteUrl, images);
     } catch (error: any) {
       logger.debug(`下载图片失败 ${noteUrl}: ${error.message}`);

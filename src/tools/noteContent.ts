@@ -5,20 +5,39 @@
 import type { Page } from 'playwright';
 import { logger } from './logger';
 import type { NoteContentWithImages } from '../types';
-import { downloadNoteImages } from './imageDownloader';
+import { downloadNoteImages, type ImageDownloadOptions } from './imageDownloader';
+
+/**
+ * 笔记内容获取选项
+ */
+export interface NoteContentOptions {
+  /** 是否包含图片 */
+  includeImages?: boolean;
+  /** 是否包含详细数据（标签、点赞、收藏、评论） */
+  includeData?: boolean;
+  /** 是否压缩图片 */
+  compressImages?: boolean;
+  /** 图片质量 (50-95) */
+  imageQuality?: number;
+  /** 最大图片尺寸（像素） */
+  maxImageSize?: number;
+}
 
 /**
  * 获取笔记的完整内容（包含文本和图片）
  *
  * @param page Playwright Page 实例
  * @param noteUrl 笔记 URL
- * @param includeImages 是否包含图片（默认 true）
- * @param includeData 是否包含详细数据（标签、点赞、收藏、评论，默认 true）
+ * @param options 获取选项
  * @returns 笔记完整内容（包含 Base64 图片）
  *
  * @example
  * ```typescript
- * const note = await getNoteContent(page, 'https://www.xiaohongshu.com/explore/xxx', true, true);
+ * const note = await getNoteContent(page, 'https://www.xiaohongshu.com/explore/xxx', {
+ *   includeImages: true,
+ *   compressImages: true,
+ *   imageQuality: 75
+ * });
  * logger.debug(note.title);
  * logger.debug(note.images.length); // 图片数量
  * ```
@@ -26,9 +45,16 @@ import { downloadNoteImages } from './imageDownloader';
 export async function getNoteContent(
   page: Page,
   noteUrl: string,
-  includeImages: boolean = true,
-  includeData: boolean = true
+  options: NoteContentOptions = {}
 ): Promise<NoteContentWithImages> {
+  // 解构选项，设置默认值
+  const {
+    includeImages = true,
+    includeData = true,
+    compressImages = true,
+    imageQuality = 75,
+    maxImageSize = 1920
+  } = options;
   logger.debug(`📖 正在获取笔记内容: ${noteUrl.substring(0, 60)}...`);
 
   // 1. 预热：先访问首页建立会话（重要！避免403/404）
@@ -167,7 +193,13 @@ export async function getNoteContent(
   if (includeImages) {
     try {
       // warmup=false 因为我们已经在上面预热过了
-      images = await downloadNoteImages(page, noteUrl, false);
+      const downloadOptions: ImageDownloadOptions = {
+        warmup: false,
+        compressImages,
+        imageQuality,
+        maxImageSize
+      };
+      images = await downloadNoteImages(page, noteUrl, downloadOptions);
       logger.debug(`  ✅ 图片数量: ${images.length}`);
     } catch (error: any) {
       logger.debug(`  ⚠️ 图片下载失败: ${error.message}`);

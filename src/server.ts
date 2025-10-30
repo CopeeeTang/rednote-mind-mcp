@@ -35,9 +35,10 @@ console.warn = redirectToStderr;
 import { checkLoginStatus, loginToXiaohongshu, loadSavedCookies, hasSavedCookies } from './tools/auth';
 import { searchNotesByKeyword } from './tools/search';
 import { getFavoritesList } from './tools/favoritesList';
-import { getNoteContent } from './tools/noteContent';
+import { getNoteContent, type NoteContentOptions } from './tools/noteContent';
 import { getBatchNotesFromFavorites } from './tools/batchNotes';
-import { downloadNoteImages } from './tools/imageDownloader';
+import { downloadNoteImages, type ImageDownloadOptions } from './tools/imageDownloader';
+import type { NoteContentWithImages, ImageData } from './types';
 
 // Cookie 存储路径
 const COOKIE_PATH = path.join(os.homedir(), '.mcp', 'rednote', 'cookies.json');
@@ -46,6 +47,126 @@ const COOKIE_PATH = path.join(os.homedir(), '.mcp', 'rednote', 'cookies.json');
 let browser: Browser | null = null;
 let context: BrowserContext | null = null;
 let page: Page | null = null;
+
+/**
+ * 将笔记内容转换为 MCP content 数组
+ * 关键：图片作为 image content 返回，而不是 JSON 字符串
+ * 这样 Claude Desktop 才能直接显示图片
+ */
+function convertNoteToMCPContent(note: NoteContentWithImages): Array<{type: string; text?: string; source?: any}> {
+  const content: Array<{type: string; text?: string; source?: any}> = [];
+
+  // 1. 文本信息（标题、正文、元数据）
+  let textContent = `# ${note.title}\n\n`;
+  textContent += `**作者**: ${note.author.name}\n`;
+  textContent += `**笔记ID**: ${note.noteId}\n`;
+  textContent += `**URL**: ${note.url}\n\n`;
+
+  if (note.tags && note.tags.length > 0) {
+    textContent += `**标签**: ${note.tags.map(t => `#${t}`).join(' ')}\n\n`;
+  }
+
+  if (note.likes || note.collects || note.comments) {
+    textContent += `**互动数据**:\n`;
+    textContent += `- 点赞: ${note.likes || 0}\n`;
+    textContent += `- 收藏: ${note.collects || 0}\n`;
+    textContent += `- 评论: ${note.comments || 0}\n\n`;
+  }
+
+  textContent += `**正文**:\n${note.content}\n`;
+
+  if (note.images && note.images.length > 0) {
+    textContent += `\n**图片数量**: ${note.images.length} 张\n`;
+
+    // 添加压缩统计信息
+    const compressedImages = note.images.filter(img => img.compressionRatio !== undefined);
+    if (compressedImages.length > 0) {
+      const avgRatio = compressedImages.reduce((sum, img) => sum + (img.compressionRatio || 0), 0) / compressedImages.length;
+      const totalOriginal = compressedImages.reduce((sum, img) => sum + (img.originalSize || 0), 0);
+      const totalCompressed = compressedImages.reduce((sum, img) => sum + img.size, 0);
+
+      textContent += `**压缩统计**:\n`;
+      textContent += `- 原始总大小: ${(totalOriginal / 1024 / 1024).toFixed(2)} MB\n`;
+      textContent += `- 压缩后大小: ${(totalCompressed / 1024 / 1024).toFixed(2)} MB\n`;
+      textContent += `- 平均压缩率: ${avgRatio.toFixed(1)}%\n`;
+    }
+  }
+
+  content.push({
+    type: 'text',
+    text: textContent
+  });
+
+  // 2. 图片（作为 MCP image content）
+  if (note.images && note.images.length > 0) {
+    for (let i = 0; i < note.images.length; i++) {
+      const img = note.images[i];
+      content.push({
+        type: 'image',
+        source: {
+          type: 'base64',
+          media_type: img.mimeType,
+          data: img.base64  // 注意：不带 data:image/jpeg;base64, 前缀
+        }
+      });
+    }
+  }
+
+  return content;
+}
+
+/**
+ * 将图片数组转换为 MCP content 数组
+ */
+function convertImagesToMCPContent(images: ImageData[]): Array<{type: string; text?: string; source?: any}> {
+  const content: Array<{type: string; text?: string; source?: any}> = [];
+
+  // 1. 文本摘要
+  let textContent = `成功下载 ${images.length} 张图片\n\n`;
+
+  const compressedImages = images.filter(img => img.compressionRatio !== undefined);
+  if (compressedImages.length > 0) {
+    const totalOriginal = compressedImages.reduce((sum, img) => sum + (img.originalSize || 0), 0);
+    const totalCompressed = compressedImages.reduce((sum, img) => sum + img.size, 0);
+    const avgRatio = compressedImages.reduce((sum, img) => sum + (img.compressionRatio || 0), 0) / compressedImages.length;
+
+    textContent += `**压缩统计**:\n`;
+    textContent += `- 原始总大小: ${(totalOriginal / 1024 / 1024).toFixed(2)} MB\n`;
+    textContent += `- 压缩后大小: ${(totalCompressed / 1024 / 1024).toFixed(2)} MB\n`;
+    textContent += `- 平均压缩率: ${avgRatio.toFixed(1)}%\n\n`;
+  }
+
+  images.forEach((img, idx) => {
+    textContent += `**图片 ${idx + 1}**:\n`;
+    if (img.width && img.height) {
+      textContent += `- 尺寸: ${img.width}x${img.height}\n`;
+    }
+    textContent += `- 大小: ${(img.size / 1024).toFixed(2)} KB\n`;
+    if (img.compressionRatio) {
+      textContent += `- 压缩率: ${img.compressionRatio.toFixed(1)}%\n`;
+    }
+    textContent += `- URL: ${img.url.substring(0, 60)}...\n\n`;
+  });
+
+  content.push({
+    type: 'text',
+    text: textContent
+  });
+
+  // 2. 图片
+  for (const img of images) {
+    content.push({
+      type: 'image',
+      source: {
+        type: 'base64',
+        media_type: img.mimeType,
+        data: img.base64
+      }
+    });
+  }
+
+  return content;
+}
 
 /**
  * 加载已保存的 cookies
@@ -182,7 +303,7 @@ const tools: Tool[] = [
   },
   {
     name: 'get_note_content',
-    description: '获取笔记的完整内容。可选择是否包含图片和详细数据（标签、点赞、收藏、评论）。重要：必须使用从 get_favorites_list 或 search_notes_by_keyword 返回的带 xsec_token 参数的完整 URL，否则可能访问失败。',
+    description: '获取笔记的完整内容。可选择是否包含图片和详细数据（标签、点赞、收藏、评论）。图片会自动压缩以节省传输体积。重要：必须使用从 get_favorites_list 或 search_notes_by_keyword 返回的带 xsec_token 参数的完整 URL，否则可能访问失败。',
     inputSchema: {
       type: 'object',
       properties: {
@@ -192,13 +313,32 @@ const tools: Tool[] = [
         },
         includeImages: {
           type: 'boolean',
-          description: '是否包含图片（Base64 编码，默认 true）',
+          description: '是否包含图片（默认 true）',
           default: true
         },
         includeData: {
           type: 'boolean',
           description: '是否包含详细数据（标签、点赞、收藏、评论数，默认 true）',
           default: true
+        },
+        compressImages: {
+          type: 'boolean',
+          description: '是否压缩图片以节省传输体积（默认 true，强烈推荐）',
+          default: true
+        },
+        imageQuality: {
+          type: 'number',
+          description: '图片压缩质量 50-95（默认 75，值越高质量越好但体积越大）',
+          default: 75,
+          minimum: 50,
+          maximum: 95
+        },
+        maxImageSize: {
+          type: 'number',
+          description: '图片最大尺寸（像素，默认 1920，足够 Claude 分析）',
+          default: 1920,
+          minimum: 960,
+          maximum: 2560
         }
       },
       required: ['noteUrl']
@@ -227,13 +367,32 @@ const tools: Tool[] = [
   },
   {
     name: 'download_note_images',
-    description: '下载笔记的所有图片（Base64 编码），包括轮播图中的所有图片。重要：必须使用从 get_favorites_list 或 search_notes_by_keyword 返回的带 xsec_token 参数的完整 URL，否则可能访问失败。',
+    description: '下载笔记的所有图片（Base64 编码），包括轮播图中的所有图片。图片会自动压缩以节省传输体积。重要：必须使用从 get_favorites_list 或 search_notes_by_keyword 返回的带 xsec_token 参数的完整 URL，否则可能访问失败。',
     inputSchema: {
       type: 'object',
       properties: {
         noteUrl: {
           type: 'string',
           description: '笔记 URL（必须是从收藏夹或搜索结果中获取的带 xsec_token 参数的完整 URL）'
+        },
+        compressImages: {
+          type: 'boolean',
+          description: '是否压缩图片（默认 true）',
+          default: true
+        },
+        imageQuality: {
+          type: 'number',
+          description: '图片压缩质量 50-95（默认 75）',
+          default: 75,
+          minimum: 50,
+          maximum: 95
+        },
+        maxImageSize: {
+          type: 'number',
+          description: '图片最大尺寸（像素，默认 1920）',
+          default: 1920,
+          minimum: 960,
+          maximum: 2560
         }
       },
       required: ['noteUrl']
@@ -338,19 +497,26 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const schema = z.object({
           noteUrl: z.string(),
           includeImages: z.boolean().default(true),
-          includeData: z.boolean().default(true)
+          includeData: z.boolean().default(true),
+          compressImages: z.boolean().default(true),
+          imageQuality: z.number().min(50).max(95).default(75),
+          maxImageSize: z.number().min(960).max(2560).default(1920)
         });
-        const { noteUrl, includeImages, includeData } = schema.parse(args);
+        const { noteUrl, includeImages, includeData, compressImages, imageQuality, maxImageSize } = schema.parse(args);
 
-        const noteContent = await getNoteContent(currentPage, noteUrl, includeImages, includeData);
+        const options: NoteContentOptions = {
+          includeImages,
+          includeData,
+          compressImages,
+          imageQuality,
+          maxImageSize
+        };
 
+        const noteContent = await getNoteContent(currentPage, noteUrl, options);
+
+        // 使用 MCP content 格式返回，图片作为 image content
         return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify(noteContent, null, 2)
-            }
-          ]
+          content: convertNoteToMCPContent(noteContent)
         };
       }
 
@@ -375,19 +541,25 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
       case 'download_note_images': {
         const schema = z.object({
-          noteUrl: z.string()
+          noteUrl: z.string(),
+          compressImages: z.boolean().default(true),
+          imageQuality: z.number().min(50).max(95).default(75),
+          maxImageSize: z.number().min(960).max(2560).default(1920)
         });
-        const { noteUrl } = schema.parse(args);
+        const { noteUrl, compressImages, imageQuality, maxImageSize } = schema.parse(args);
 
-        const images = await downloadNoteImages(currentPage, noteUrl, false);
+        const options: ImageDownloadOptions = {
+          warmup: true,
+          compressImages,
+          imageQuality,
+          maxImageSize
+        };
 
+        const images = await downloadNoteImages(currentPage, noteUrl, options);
+
+        // 使用 MCP content 格式返回，图片作为 image content
         return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify(images, null, 2)
-            }
-          ]
+          content: convertImagesToMCPContent(images)
         };
       }
 

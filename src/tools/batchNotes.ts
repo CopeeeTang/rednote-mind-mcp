@@ -68,7 +68,13 @@ export async function getBatchNotesFromFavorites(
 
       try {
         // 获取笔记完整内容
-        const noteContent = await getNoteContent(page, favorite.url, includeImages);
+        const noteContent = await getNoteContent(page, favorite.url, {
+          includeImages,
+          includeData: true,
+          compressImages: true,
+          imageQuality: 75,
+          maxImageSize: 1920
+        });
 
         result.notes.push(noteContent);
         result.successCount++;
@@ -152,7 +158,13 @@ export async function getBatchNotesFromUrls(
     logger.debug(`[${i + 1}/${noteUrls.length}] ${url.substring(0, 60)}...`);
 
     try {
-      const noteContent = await getNoteContent(page, url, includeImages);
+      const noteContent = await getNoteContent(page, url, {
+        includeImages,
+        includeData: true,
+        compressImages: true,
+        imageQuality: 75,
+        maxImageSize: 1920
+      });
       result.notes.push(noteContent);
       result.successCount++;
 

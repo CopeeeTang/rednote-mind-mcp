@@ -19,6 +19,22 @@ export interface FavoriteNote {
 }
 
 /**
+ * VLM 图片分析结果（可选）
+ */
+export interface VLMAnalysisResult {
+  /** 是否包含文字 */
+  hasText: boolean;
+  /** 提取的文本内容 */
+  textContent: string;
+  /** 图片描述 */
+  description: string;
+  /** 检测到的对象/场景 */
+  detectedObjects: string[];
+  /** 置信度 (0-1) */
+  confidence: number;
+}
+
+/**
  * 图片数据（用于 Claude Vision API）
  */
 export interface ImageData {
@@ -26,10 +42,20 @@ export interface ImageData {
   url: string;
   /** Base64 编码的图片数据 */
   base64: string;
-  /** 图片大小（字节） */
+  /** 压缩后的图片大小（字节） */
   size: number;
+  /** 原始图片大小（字节，如果启用压缩） */
+  originalSize?: number;
+  /** 压缩率（百分比，如果启用压缩） */
+  compressionRatio?: number;
+  /** 图片宽度（像素） */
+  width?: number;
+  /** 图片高度（像素） */
+  height?: number;
   /** MIME 类型 */
   mimeType: string;
+  /** VLM 预分析结果（如果启用） */
+  vlmAnalysis?: VLMAnalysisResult;
 }
 
 /**

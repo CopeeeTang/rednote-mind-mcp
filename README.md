@@ -71,19 +71,32 @@ Claude自动调用MCP工具：
   - 支持排序：综合排序/最热/最新
   - ✅ **自动点击提取xsec_token**（确保搜索结果URL可访问）
 
-#### 🖼️ 图片工具
+#### 🖼️ 图片工具（新增智能压缩）
 - `download_note_images` - 下载笔记图片
+  - **智能压缩**：自动将图片压缩至合理大小（默认节省 85% 体积）
+  - **可配置质量**：支持 `compressImages`、`imageQuality`（50-95）、`maxImageSize`（960-2560px）参数
+  - **MCP 标准格式**：图片作为 MCP image content 返回，Claude Desktop 可直接显示
   - Base64编码输出，直接供Claude Vision分析
   - 支持批量下载（论文截图、图表、配方图）
+
+#### 🤖 VLM 预分析（可选）
+- 使用 Claude API 预分析图片内容
+  - 自动提取图片中的文字（OCR）
+  - 生成结构化描述（对象、场景、类型）
+  - 适合大量文字截图的快速提取
+  - 需设置 `ANTHROPIC_API_KEY` 环境变量启用
+  - 成本：约 $0.027/张图片
 
 ### 🌟 核心优势
 
 1. **零手动复制** - AI自动获取URL和内容，无需人工介入
 2. **智能Token提取** - 自动点击笔记获取带`xsec_token`的完整URL，避免403/404错误
 3. **真实用户ID** - 登录时自动提取并保存用户ID（`604dbc13...`），不再使用`/me`占位符
-4. **Claude Vision支持** - 图片Base64输出，AI能分析论文图表、公式、流程图
-5. **8+客户端兼容** - Claude Desktop、Claude Code、Cursor、VSCode Cline、Continue.dev、Gemini CLI等
-6. **首次登录引导** - `rednote-init`命令提供友好的登录向导
+4. **智能图片压缩** - 图片自动压缩节省 85% 传输体积，避免 MCP 消息截断
+5. **MCP 标准显示** - 图片以 MCP image content 格式返回，Claude Desktop 直接可视化显示
+6. **Claude Vision支持** - 压缩后的图片质量仍足够 AI 分析论文图表、公式、流程图
+7. **8+客户端兼容** - Claude Desktop、Claude Code、Cursor、VSCode Cline、Continue.dev、Gemini CLI等
+8. **首次登录引导** - `rednote-init`命令提供友好的登录向导
 
 ---
 
@@ -312,7 +325,50 @@ rednote-mind-mcp init
 
 ---
 
-### 示例3：美食菜谱整理
+### 示例3：自定义图片压缩质量
+
+**高质量图片（文字截图）：**
+
+```
+获取笔记 https://www.xiaohongshu.com/explore/xxx?xsec_token=...，
+使用高质量图片压缩（imageQuality=85），以便清晰识别图片中的代码和文字。
+```
+
+Claude 会调用：
+```json
+{
+  "noteUrl": "...",
+  "compressImages": true,
+  "imageQuality": 85,
+  "maxImageSize": 2560
+}
+```
+
+**快速预览（低带宽环境）：**
+
+```
+获取我收藏夹前30篇笔记的概览，图片使用低质量压缩以加快速度。
+```
+
+Claude 会使用：
+```json
+{
+  "limit": 30,
+  "includeImages": true,
+  "compressImages": true,
+  "imageQuality": 60,
+  "maxImageSize": 1280
+}
+```
+
+**压缩效果**：
+- 默认设置（quality=75, size=1920）：单张 2MB → 250KB，节省 87%
+- 高质量设置（quality=85, size=2560）：单张 2MB → 400KB，节省 80%
+- 快速预览（quality=60, size=1280）：单张 2MB → 150KB，节省 92%
+
+---
+
+### 示例4：美食菜谱整理
 
 **在Claude Desktop中发送：**
 
