@@ -1,3 +1,5 @@
+
+
 # Rednote-Mind-Skills
 
 > 让 AI 成为你的知识管理助手：本地代码库 + 社交媒体热点追踪
@@ -212,8 +214,7 @@ AI: [检查本地知识库...]
 #### VLM 提供商优先级
 
 1. **智增增** (`ZZZ_API_KEY`) - 推荐，成本低
-2. **Jina** (`JINA_API_KEY`) - 备选
-3. **智谱 GLM-4V** (`ZHIPU_API_KEY`) - 有内置测试 Key
+2. **智谱 GLM-4V** (`ZHIPU_API_KEY`) - 备选，有内置测试 Key
 
 ### Twitter/X 抓取
 
